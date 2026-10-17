@@ -1072,7 +1072,7 @@ function openFiles(name, start = '/') {
         const mine = ++ticket;
         status(statusNode, 'busy', `Listing ${next}…`);
         try {
-            const result = await manage('files', { name, path: next });
+            const result = await manage('files', { name, path: next, confirmed: true });
             if (mine !== ticket || !dialog.open) {
                 return;
             }
@@ -1238,7 +1238,9 @@ function openDiagnose(name) {
         try {
             status(statusNode, 'busy', 'Checking listeners and TCP…');
             try {
-                const result = await manage('diagnose', { name, host: target, port: number }, id);
+                // The diagnose dialog is the explicit consent for probing the typed host, which may
+                // resolve to a private or loopback address — that is the feature's normal case.
+                const result = await manage('diagnose', { name, host: target, port: number, confirmed: true }, id);
                 results.append(section('Network checks', `Host ${target}, port ${number}.`,
                     (result?.checks ?? []).length
                         ? el('ul', { class: 'mg-checks' }, result.checks.map((check) => el('li', {},
@@ -1256,7 +1258,11 @@ function openDiagnose(name) {
             if (http.checked) {
                 status(statusNode, 'busy', 'Sending one HTTP request from Windows…');
                 try {
-                    const ready = await manage('readiness', { name, url: url.value.trim() }, id);
+                    // The host guard on Windows asks for confirmation when the URL resolves to a private
+                    // or loopback address; this heuristic covers the common literal cases up front.
+                    const target = url.value.trim();
+                    const restricted = (() => { try { return /^(localhost|0\.|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|\[::1\]|::1)/i.test(new URL(target).hostname); } catch { return false; } })();
+                    const ready = await manage('readiness', { name, url: target, confirmed: restricted }, id);
                     results.append(section('Windows HTTP reachability', 'One request from Windows to this URL, without redirects. Separate from the container\'s own health check.',
                         el('p', { class: 'mg-inline' }, badge(ready?.ok ? 'reachable' : 'not ready', ready?.ok ? 'green' : 'pink'),
                             el('span', { class: 'num' }, `${ready?.status || 'no response'} · ${ready?.ms ?? '?'} ms`)),

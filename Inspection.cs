@@ -76,7 +76,11 @@ public static partial class Inspection
                     if (array[i] is JsonValue value && value.GetValueKind() == JsonValueKind.String)
                     {
                         var text = value.GetValue<string>();
-                        array[i] = hideNext ? Mask : MaskAssignment(text, always: false);
+                        var masked = MaskAssignment(text, always: false);
+                        // Command-style arrays (Cmd, Entrypoint, Healthcheck) hold more than KEY=value pairs;
+                        // credential-bearing entries such as bearer tokens must not survive masking either.
+                        if (masked == text && SensitiveText(text)) masked = Mask;
+                        array[i] = hideNext ? Mask : masked;
                         hideNext = !hideNext && text.StartsWith('-') && !text.Contains('=') && IsSecretKey(text);
                     }
                     else
@@ -113,8 +117,23 @@ public static partial class Inspection
 
     public static bool IsSecretKey(string key) => SecretKey().IsMatch(key);
 
-    [GeneratedRegex(@"pass(word|wd)?|secret|token|credential|auth(?!or)|api[-_]?key|private[-_]?key|access[-_]?key|session[-_]?key", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"pass(word|wd)?|secret|token|credential|authorization|auth(?!or)|signature|\bsig\b|api[-_]?key|private[-_]?key|access[-_]?key|session[-_]?key", RegexOptions.IgnoreCase)]
     private static partial Regex SecretKey();
+
+    /// <summary>Free text (command arguments, log or file lines) that carries a credential even without a KEY= head.</summary>
+    [GeneratedRegex(@"\b(bearer|basic)\s+\S|authorization\s*[:=]|\b(api[-_]?key|secret|password|passwd|token|credential|private[-_]?key|access[-_]?key)\s*[:=]\s*\S", RegexOptions.IgnoreCase)]
+    private static partial Regex SensitiveTextPattern();
+
+    private static bool SensitiveText(string text) => SensitiveTextPattern().IsMatch(text);
+
+    /// <summary>Masks credential-bearing lines in file or log text before it reaches the renderer.</summary>
+    public static string MaskText(string text) =>
+        string.Join('\n', text.Split('\n').Select(line =>
+        {
+            var plain = line.TrimEnd('\r');
+            var masked = MaskAssignment(plain, always: false);
+            return masked != plain || !SensitiveText(plain) ? masked : Mask;
+        }));
 
     public static ContainerDetail Detail(JsonObject inspect)
     {

@@ -207,6 +207,8 @@ public sealed partial class Management
     {
         var name = p.Identifier("name");
         var path = p.ContainerPath("path", "/");
+        // File content can hold secrets; browsing is explicit and the returned text is masked.
+        p.Confirm($"Browsing files in '{name}'");
         var result = await runner.RunAsync(["container", "exec", name, "sh", "-c", FilesScript, "sh", path], token);
         if (result.Code is 126 or 127)
         {
@@ -225,7 +227,7 @@ public sealed partial class Management
         {
             var text = output[2..];
             var binary = text.Contains('\0');
-            return new { path, entries = Array.Empty<FileEntry>(), text = binary ? null : text, binary, truncated = System.Text.Encoding.UTF8.GetByteCount(text) >= MaxFileText };
+            return new { path, entries = Array.Empty<FileEntry>(), text = binary ? null : Inspection.MaskText(text), binary, truncated = System.Text.Encoding.UTF8.GetByteCount(text) >= MaxFileText };
         }
         if (!output.StartsWith("D\n", StringComparison.Ordinal))
         {

@@ -99,8 +99,9 @@ public sealed partial class Management(ICommandRunner runner, string? session = 
             args.Add(name);
             var result = await RunAsync($"Reading logs of '{name}'", args, token);
             // wslc relays the container's stderr on its own stderr, so a successful run has log lines on both streams.
-            entries.AddRange(Inspection.LogLines(name, result.Output));
-            entries.AddRange(Inspection.LogLines(name, result.Error));
+            // Log text comes from the container's owner, so credential-bearing lines are masked before rendering.
+            entries.AddRange(Inspection.LogLines(name, result.Output).Select(entry => entry with { Text = Inspection.MaskText(entry.Text) }));
+            entries.AddRange(Inspection.LogLines(name, result.Error).Select(entry => entry with { Text = Inspection.MaskText(entry.Text) }));
             truncated |= result.Truncated;
         }
         return new { entries = entries.OrderBy(entry => Inspection.SortKey(entry.Time), StringComparer.Ordinal).ToList(), truncated };

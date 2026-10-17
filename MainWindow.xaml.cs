@@ -319,6 +319,8 @@ public partial class MainWindow : Window
                 return await Task.Run(() => _store.Stats(range, now, capacity));
             case "activity":
                 var filter = Read(new ActivityQuery());
+                if (filter.Kinds is { } kinds && (kinds.Count > 32 || kinds.Any(kind => kind.Length > 64)))
+                    throw new ArgumentException("At most 32 kinds of up to 64 characters each can be filtered.");
                 filter = filter with { Limit = Math.Clamp(filter.Limit, 1, 500) };
                 return await Task.Run(() => _store.Activity(filter));
             case "containers":

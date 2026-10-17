@@ -237,6 +237,18 @@ public sealed class StoreTests : IDisposable
         Assert.Equal(5L, Store.Stats("30d", T0 + 74 * Hour, Sizes).Db.Minutes);
     }
 
+    // VULN-006 — events are pruned together with the samples instead of growing without bound.
+    [Fact]
+    public void Events_are_pruned_with_the_samples()
+    {
+        var a = Info("a");
+        Store.Write(Snapshot(T0, (a, Sample(cpu: 1))), [Event(T0, ActivityKind.State, "a", "a exited → running")]);
+
+        Store.Write(Snapshot(T0 + 72 * Hour + 10 * Minute, (a, Sample(cpu: 3))), []);
+
+        Assert.Equal(0L, Rows("SELECT COUNT(*) FROM events").Single()[0]);
+    }
+
     [Fact]
     public void Containers_no_longer_listed_are_marked_removed_and_not_reloaded()
     {

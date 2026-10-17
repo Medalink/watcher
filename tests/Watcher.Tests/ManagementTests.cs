@@ -379,7 +379,7 @@ public sealed class ManagementTests : IDisposable
         IReadOnlyList<string>? seen = null;
         var runner = new FakeRunner(args => { seen = args; return Ok("D\nfile\tnginx.conf\0dir\tconf.d\0link\tmime\0dir\t.git\0"); });
 
-        var json = await Call(Service(runner), "files", """{"name":"web","path":"/etc/nginx; reboot"}""");
+        var json = await Call(Service(runner), "files", """{"name":"web","path":"/etc/nginx; reboot","confirmed":true}""");
 
         Assert.Equal(["container", "exec", "web", "sh", "-c", Management.FilesScript, "sh", "/etc/nginx; reboot"], seen);
         Assert.DoesNotContain("\r", Management.FilesScript);
@@ -391,9 +391,9 @@ public sealed class ManagementTests : IDisposable
     [Fact]
     public async Task Files_previews_a_text_file_and_explains_a_missing_shell()
     {
-        var preview = await Call(Service(new FakeRunner(_ => Ok("F\nuser nginx;\n"))), "files", """{"name":"web","path":"/etc/nginx/nginx.conf"}""");
+        var preview = await Call(Service(new FakeRunner(_ => Ok("F\nuser nginx;\n"))), "files", """{"name":"web","path":"/etc/nginx/nginx.conf","confirmed":true}""");
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            Call(Service(new FakeRunner(_ => new CommandResult(127, "", "exec: \"sh\": executable file not found in $PATH"))), "files", """{"name":"distroless"}"""));
+            Call(Service(new FakeRunner(_ => new CommandResult(127, "", "exec: \"sh\": executable file not found in $PATH"))), "files", """{"name":"distroless","confirmed":true}"""));
 
         Assert.Equal("""{"path":"/etc/nginx/nginx.conf","entries":[],"text":"user nginx;\n","binary":false,"truncated":false}""", preview);
         Assert.Equal("'distroless' has no /bin/sh, so its files cannot be browsed. Use copy to transfer files instead.", error.Message);
@@ -501,7 +501,7 @@ public sealed class ManagementTests : IDisposable
             var port = ((IPEndPoint)listener.LocalEndpoint).Port;
             var runner = Runner();
 
-            var result = JsonDocument.Parse(await Call(Service(runner), "diagnose", $$"""{"host":"127.0.0.1","port":{{port}}}""")).RootElement;
+            var result = JsonDocument.Parse(await Call(Service(runner), "diagnose", $$"""{"host":"127.0.0.1","port":{{port}},"confirmed":true}""")).RootElement;
 
             var checks = result.GetProperty("checks").EnumerateArray().ToList();
             Assert.Equal(["Windows listener", "Host TCP"], checks.Select(c => c.GetProperty("name").GetString()));
@@ -514,6 +514,16 @@ public sealed class ManagementTests : IDisposable
         {
             listener.Stop();
         }
+    }
+
+    // VULN-001/008 — probing a restricted destination without confirmation is refused before connecting.
+    [Fact]
+    public async Task Diagnose_to_loopback_needs_confirmation()
+    {
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Call(Service(Runner()), "diagnose", """{"host":"127.0.0.1","port":1}"""));
+
+        Assert.Contains("needs explicit confirmation", error.Message);
     }
 
     [Fact]
@@ -529,7 +539,7 @@ public sealed class ManagementTests : IDisposable
         });
 
         var result = JsonDocument.Parse(await Call(Service(runner), "diagnose",
-            """{"name":"web","host":"127.0.0.1","port":1,"probeHost":"db","probePort":5432}""")).RootElement;
+            """{"name":"web","host":"127.0.0.1","port":1,"probeHost":"db","probePort":5432,"confirmed":true}""")).RootElement;
 
         var checks = result.GetProperty("checks").EnumerateArray().ToDictionary(c => c.GetProperty("name").GetString()!, c => (c.GetProperty("ok").GetBoolean(), c.GetProperty("detail").GetString()));
         Assert.Equal((false, "'web' does not publish host port 1; its ports are {\"80/tcp\":[{\"HostIp\":\"127.0.0.1\",\"HostPort\":\"8080\"}]}."), checks["Published port"]);

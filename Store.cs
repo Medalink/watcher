@@ -187,7 +187,11 @@ public sealed partial class Store : IDisposable
 
     private void Prune(long now)
     {
-        Execute(_connection, "DELETE FROM samples WHERE at < $cutoff", ("$cutoff", now - RetentionHours * Hour));
+        var cutoff = now - RetentionHours * Hour;
+        Execute(_connection, "DELETE FROM samples WHERE at < $cutoff", ("$cutoff", cutoff));
+        // Events live at least as long as samples so activity history stays coherent; without this
+        // the table grows without bound, driven by container churn alone.
+        Execute(_connection, "DELETE FROM events WHERE at < $cutoff", ("$cutoff", cutoff));
         _prunedAt = now;
     }
 

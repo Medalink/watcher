@@ -265,7 +265,14 @@ public partial class MainWindow
         if (!Uri.TryCreate(Required(parameters, "url"), UriKind.Absolute, out var url)
             || url.Scheme is not ("http" or "https") || url.UserInfo.Length > 0)
             throw new ArgumentException("Use an HTTP or HTTPS URL without credentials.");
-        using var handler = new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false };
+        // Private and loopback destinations need explicit confirmation, and the resolved address set is
+        // pinned inside the connect callback so DNS rebinding cannot swap public for private in between.
+        var resolved = await NetworkGuard.ResolveAsync(url.IdnHost, token);
+        var restricted = NetworkGuard.IsRestricted(resolved);
+        if (restricted && !Confirmed(parameters))
+            throw new ArgumentException($"'{url.IdnHost}' resolves to a private or loopback address. Probe it again to confirm.");
+        using var handler = new SocketsHttpHandler { AllowAutoRedirect = false, UseProxy = false };
+        handler.ConnectCallback = NetworkGuard.ValidatingConnect(url.IdnHost, restricted);
         using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(5) };
         var watch = Stopwatch.StartNew();
         try
@@ -279,6 +286,10 @@ public partial class MainWindow
             return new { ok = false, status = 0, detail = e.Message, ms = watch.ElapsedMilliseconds };
         }
     }
+
+    private static bool Confirmed(JsonElement parameters) =>
+        parameters.ValueKind == JsonValueKind.Object && parameters.TryGetProperty("confirmed", out var flag)
+        && flag.ValueKind == JsonValueKind.True;
 
     private object PickPath(JsonElement parameters)
     {
@@ -360,9 +371,11 @@ public partial class MainWindow
     {
         var rule = activity.Container is { } name && _preferences.ContainerAlerts?.TryGetValue(name, out var custom) == true ? custom : _preferences.EffectiveAlerts;
         if (!rule.Notifications || rule.Muted) return;
+        // Notability comes from structured detail fields, never from owner-controlled summary text:
+        // a container named to contain "exited" must not fire or suppress alerts (CWE-290).
         var notable = activity.Kind is ActivityKind.CpuHigh or ActivityKind.MemoryHigh or ActivityKind.WslcOffline
-            || activity.Kind == ActivityKind.State && activity.Summary.Contains("exited", StringComparison.OrdinalIgnoreCase)
-            || activity.Kind == "runtime" && activity.Summary.Contains("unhealthy", StringComparison.OrdinalIgnoreCase);
+            || activity.Kind == ActivityKind.State && EnteredStoppedState(activity.Detail)
+            || activity.Kind == "runtime" && RuntimeUnhealthy(activity.Detail);
         if (!notable) return;
         var key = $"{activity.Kind}/{activity.Container}";
         if (_notified.TryGetValue(key, out var previous) && activity.At - previous < rule.CooldownSeconds * 1000L) return;
@@ -370,6 +383,14 @@ public partial class MainWindow
         EnsureTray();
         _tray?.Notify("Watcher", activity.Summary);
     }
+
+    /// <summary>A state change is alert-worthy when the container moved into a stopped state, per the structured detail.</summary>
+    private static bool EnteredStoppedState(System.Text.Json.Nodes.JsonObject? detail) =>
+        detail?["to"]?.ToString() is "exited" or "dead";
+
+    /// <summary>Runtime health events are alert-worthy when the structured action reports unhealthy.</summary>
+    private static bool RuntimeUnhealthy(System.Text.Json.Nodes.JsonObject? detail) =>
+        detail?["Action"]?.ToString() is { } action && action.EndsWith("unhealthy", StringComparison.OrdinalIgnoreCase);
 
     private async Task CaptureRuntimeEventsAsync(long at)
     {
