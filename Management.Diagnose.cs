@@ -42,6 +42,11 @@ public sealed partial class Management
 
         var listeners = TcpListeners.On(port);
         var checks = new List<Check> { ListenerCheck(port, listeners) };
+        // Windows-side probes may only reach private or loopback destinations with explicit confirmation,
+        // and the resolved address set is pinned so a lookup cannot answer public and connect private.
+        var resolved = await NetworkGuard.ResolveAsync(host, token);
+        var restricted = NetworkGuard.IsRestricted(resolved);
+        if (restricted) p.Confirm($"Probing '{host}', which resolves to a private or loopback address");
         object? published = null;
         if (name is not null)
         {
@@ -52,10 +57,10 @@ public sealed partial class Management
                 ? $"'{name}' publishes container traffic on host port {port}."
                 : $"'{name}' does not publish host port {port}; its ports are {detail.Ports?.ToJsonString() ?? "none"}."));
         }
-        checks.Add(await TcpCheckAsync(host, port, token));
+        checks.Add(await TcpCheckAsync(host, port, restricted, token));
         if (p.Flag("http"))
         {
-            checks.Add(await HttpCheckAsync(host, port, token));
+            checks.Add(await HttpCheckAsync(host, port, restricted, token));
         }
         if (name is not null && probeHost is not null)
         {
@@ -96,30 +101,41 @@ public sealed partial class Management
             : new Check("Windows listener", true, $"Listening: {owners}.");
     }
 
-    private static async Task<Check> TcpCheckAsync(string host, int port, CancellationToken token)
+    private static async Task<Check> TcpCheckAsync(string host, int port, bool allowRestricted, CancellationToken token)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
         deadline.CancelAfter(ProbeTimeout);
-        using var client = new TcpClient();
         var watch = Stopwatch.StartNew();
         try
         {
-            await client.ConnectAsync(host, port, deadline.Token);
-            return new Check("Host TCP", true, $"Connected to {host}:{port} in {watch.ElapsedMilliseconds} ms.");
+            var addresses = await NetworkGuard.ResolveAsync(host, deadline.Token);
+            if (addresses.Length == 0) return new Check("Host TCP", false, $"{host}: could not be resolved.");
+            if (!allowRestricted && addresses.Any(NetworkGuard.Restricted))
+                return new Check("Host TCP", false, $"{host} resolves to a private or loopback address; probing it needs explicit confirmation.");
+            SocketException? last = null;
+            foreach (var address in addresses)
+            {
+                using var client = new TcpClient(address.AddressFamily);
+                try
+                {
+                    await client.ConnectAsync(address, port, deadline.Token);
+                    return new Check("Host TCP", true, $"Connected to {host}:{port} in {watch.ElapsedMilliseconds} ms.");
+                }
+                catch (SocketException e) { last = e; }
+            }
+            return new Check("Host TCP", false, $"{host}:{port}: {last?.Message ?? "no resolved address answered"}.");
         }
         catch (OperationCanceledException) when (!token.IsCancellationRequested)
         {
             return new Check("Host TCP", false, $"No answer from {host}:{port} within {ProbeTimeout.TotalSeconds:0} seconds.");
         }
-        catch (SocketException e)
-        {
-            return new Check("Host TCP", false, $"{host}:{port}: {e.Message}");
-        }
     }
 
-    private static async Task<Check> HttpCheckAsync(string host, int port, CancellationToken token)
+    private static async Task<Check> HttpCheckAsync(string host, int port, bool allowRestricted, CancellationToken token)
     {
-        using var http = new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, UseProxy = false }) { Timeout = TimeSpan.FromSeconds(5) };
+        using var handler = new SocketsHttpHandler { AllowAutoRedirect = false, UseProxy = false };
+        handler.ConnectCallback = NetworkGuard.ValidatingConnect(host, allowRestricted);
+        using var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(5) };
         var url = new UriBuilder("http", host, port).Uri;
         try
         {
