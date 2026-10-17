@@ -1,0 +1,575 @@
+import { $, ago, bytes, clock, day, on, percent, post, registerPage, request, share, size, whose } from './app.js';
+
+const rows = new Map();
+const groups = new Map();
+const busy = new Set();
+const expanded = new Set(JSON.parse(localStorage.getItem('expanded') ?? '[]'));
+let containers = [];
+let capacity = null;
+
+const icons = {
+    stop: '<rect x="6" y="6" width="12" height="12"/>',
+    start: '<path d="M7 4.5v15l12-7.5z"/>',
+};
+
+// ---------- Sorting ----------
+
+const running = (c) => c.state === 'running';
+const states = ['running', 'created', 'exited'];
+
+/** dir is the first click's direction; a null value sorts last both ways. Uptime runs from created, so older is longer. */
+const sorts = {
+    created: { dir: -1, value: (c) => c.created ?? null },
+    name: { dir: 1, value: (c) => c.title.toLowerCase() },
+    port: { dir: 1, value: (c) => parseInt(c.port, 10) || null },
+    cpu: { dir: -1, value: (c) => (running(c) ? c.cpu ?? null : null) },
+    memory: { dir: -1, value: (c) => (running(c) ? c.memoryBytes ?? null : null) },
+    uptime: { dir: -1, value: (c) => (running(c) && c.created ? -c.created : null) },
+    state: { dir: 1, value: (c) => (states.includes(c.state) ? states.indexOf(c.state) : states.length) * 2 + (c.orphan ? 1 : 0) },
+};
+
+const saved = JSON.parse(localStorage.getItem('containers-sort') ?? 'null');
+let sort = sorts[saved?.key] && Math.abs(saved.dir) === 1 ? saved : { key: 'created', dir: -1 };
+
+function compare(a, b) {
+    const [x, y] = [sorts[sort.key].value(a), sorts[sort.key].value(b)];
+    if (x !== y && (x === null || y === null)) {
+        return x === null ? 1 : -1;
+    }
+    if (x !== y) {
+        return (x < y ? -1 : 1) * sort.dir;
+    }
+
+    return (b.created ?? 0) - (a.created ?? 0) || a.title.localeCompare(b.title);
+}
+
+function sortBy(key) {
+    sort = sort.key === key ? { key, dir: -sort.dir } : { key, dir: sorts[key].dir };
+    localStorage.setItem('containers-sort', JSON.stringify(sort));
+    layout();
+}
+
+// ---------- Sections ----------
+
+/** The group label as typed, else the folder's parent folder name, so sibling folders share a section. */
+function sectionOf(c) {
+    if (c.group) {
+        return c.group;
+    }
+    const parts = (c.path ?? '').split(/[\\/]+/).filter(Boolean);
+
+    return parts.length >= 2 ? parts.at(-2) : 'Other';
+}
+
+const bySectionName = (a, b) => (a === 'Other') - (b === 'Other') || a.localeCompare(b, undefined, { sensitivity: 'base' });
+
+function groupElement(name) {
+    if (!groups.has(name)) {
+        const element = $('group-template').content.firstElementChild.cloneNode(true);
+        element.querySelector('.group-name').textContent = name;
+        element.querySelectorAll('.sort').forEach((button) => button.addEventListener('click', () => sortBy(button.dataset.sort)));
+        groups.set(name, element);
+    }
+
+    return groups.get(name);
+}
+
+// ---------- Formatting ----------
+
+const cpuTone = (cpu) => (cpu >= 50 ? 'pink' : cpu >= 25 ? 'amber' : 'green');
+const memoryTone = (memory) => (memory >= 90 ? 'pink' : memory >= 75 ? 'amber' : 'green');
+
+function tone(container) {
+    if (container.orphan) {
+        return 'amber';
+    }
+
+    return running(container) ? 'green' : 'neutral';
+}
+
+function setTone(element, value) {
+    element.classList.remove('tone-green', 'tone-amber', 'tone-pink', 'tone-neutral');
+    if (value) {
+        element.classList.add(`tone-${value}`);
+    }
+}
+
+// Seconds between snapshots, smoothed, so the chart can say how much time it covers.
+let interval = 2.3;
+let lastSnapshot = 0;
+
+function duration(samples) {
+    const seconds = samples * interval;
+
+    return seconds < 90 ? `last ${Math.round(seconds)} s` : `last ${Math.round(seconds / 60)} min`;
+}
+
+// A round chart ceiling so the scale label reads cleanly: 5, 10, 25, 50, 100, 200 …
+function ceilingFor(peak) {
+    const steps = [1, 2, 5, 10, 25, 50, 100];
+
+    return steps.find((step) => step >= peak * 1.15) ?? 100;
+}
+
+// Right-aligned history, stretched across at least a dozen slots so a new container doesn't draw one wide wedge.
+function spark(chart, history, ceiling, scale) {
+    const line = chart.querySelector('.line');
+    const area = chart.querySelector('.area');
+    if (!history || history.length < 2) {
+        line.setAttribute('points', '');
+        area.setAttribute('points', '');
+        chart.querySelector('.scale').textContent = '';
+        chart.querySelector('.span').textContent = '';
+        return;
+    }
+    const slots = Math.max(history.length, 12);
+    const offset = slots - history.length;
+    const points = history.map((value, index) => {
+        const x = ((offset + index) / (slots - 1)) * 100;
+        const y = 100 - Math.min(1, value / ceiling) * 100;
+        return `${x.toFixed(2)},${y.toFixed(2)}`;
+    });
+    const first = ((offset / (slots - 1)) * 100).toFixed(2);
+    line.setAttribute('points', points.join(' '));
+    area.setAttribute('points', `${first},100 ${points.join(' ')} 100,100`);
+    chart.querySelector('.scale').textContent = scale;
+    chart.querySelector('.span').textContent = duration(history.length);
+}
+
+// ---------- Rows ----------
+
+function createRow(name) {
+    const row = $('row-template').content.firstElementChild.cloneNode(true);
+    row.dataset.name = name;
+    row.querySelector('.head').addEventListener('click', (event) => {
+        if (!event.target.closest('button')) {
+            toggleExpanded(name);
+        }
+    });
+    row.querySelectorAll('[data-op]').forEach((button) =>
+        button.addEventListener('click', () => act(name, button.dataset.op)));
+    rows.set(name, row);
+
+    return row;
+}
+
+function toggleExpanded(name, force) {
+    const open = force ?? !expanded.has(name);
+    open ? expanded.add(name) : expanded.delete(name);
+    rows.get(name)?.classList.toggle('expanded', open);
+    localStorage.setItem('expanded', JSON.stringify([...expanded]));
+    updateExpandAll();
+}
+
+function updateExpandAll() {
+    const allOpen = containers.length > 0 && containers.every((c) => expanded.has(c.name));
+    $('expand-all').textContent = allOpen ? 'Collapse all' : 'Expand all';
+    $('expand-all').hidden = containers.length === 0;
+}
+
+$('expand-all').addEventListener('click', () => {
+    const open = !containers.every((c) => expanded.has(c.name));
+    containers.forEach((c) => toggleExpanded(c.name, open));
+});
+
+function text(row, selector, value) {
+    const element = row.querySelector(selector);
+    if (element.textContent !== value) {
+        element.textContent = value;
+    }
+}
+
+function render(row, c) {
+    const live = running(c);
+    setTone(row, tone(c));
+    row.classList.toggle('expanded', expanded.has(c.name));
+    row.classList.toggle('busy', busy.has(c.name));
+
+    text(row, '.name', c.title);
+    row.querySelector('.name').title = c.name;
+    text(row, '.branch', c.orphan ? 'folder deleted' : c.branch ?? c.image);
+    text(row, '.port', c.port || '—');
+    text(row, '.uptime', live ? c.uptime : '—');
+    text(row, '.badge', c.orphan ? 'folder deleted' : c.state);
+
+    const cpu = row.querySelector('.metric.cpu');
+    const memory = row.querySelector('.metric.mem');
+    if (live && c.cpu !== undefined) {
+        const cpuShare = share(c.cpu, capacity.wsl.cpus);
+        const cpuHistory = c.cpuHistory.map((cores) => share(cores, capacity.wsl.cpus));
+        text(cpu, '.value', percent(cpuShare));
+        setTone(cpu, cpuTone(cpuShare));
+        const cpuCeiling = ceilingFor(Math.max(...cpuHistory));
+        spark(cpu.querySelector('.chart'), cpuHistory, cpuCeiling, `${cpuCeiling}%`);
+        text(memory, '.v', bytes(c.memoryBytes));
+        const limit = c.memoryLimitBytes ? bytes(c.memoryLimitBytes).replace('.0 ', ' ') : '';
+        text(memory, '.limit', limit ? `of ${limit}` : '');
+        setTone(memory, memoryTone(c.memoryPercent));
+        spark(memory.querySelector('.chart'), c.memoryHistory, 100, limit);
+    } else {
+        text(cpu, '.value', '—');
+        text(memory, '.v', '—');
+        text(memory, '.limit', '');
+        setTone(cpu, null);
+        setTone(memory, null);
+        spark(cpu.querySelector('.chart'), null);
+        spark(memory.querySelector('.chart'), null);
+    }
+
+    const facts = (field, value) => {
+        const element = row.querySelector(`[data-f="${field}"]`);
+        if (element.innerHTML !== value) {
+            element.innerHTML = value;
+        }
+    };
+    const dim = (value) => `<span class="dim">${value}</span>`;
+    facts('net', live && c.netIn !== undefined ? `${dim('↓')}${bytes(c.netIn)}${dim('↑')}${bytes(c.netOut)}` : '—');
+    facts('disk', live && c.diskRead !== undefined ? `${dim('R')}${bytes(c.diskRead)}${dim('W')}${bytes(c.diskWrite)}` : '—');
+    facts('pids', live && c.pids ? c.pids : '—');
+    text(row, '[data-f="created"]', c.created ? `${ago(c.created)} · ${day(c.created)} ${clock(c.created)}` : '—');
+    text(row, '[data-f="image"]', c.image);
+    text(row, '[data-f="path"]', c.path ?? '—');
+    row.querySelector('[data-f="path"]').title = c.path ?? '';
+
+    const toggle = row.querySelector('[data-op="toggle"]');
+    const verb = live ? 'stop' : 'start';
+    if (toggle.dataset.verb !== verb) {
+        toggle.dataset.verb = verb;
+        toggle.querySelector('svg').innerHTML = icons[verb];
+        toggle.querySelector('span').textContent = live ? 'Stop' : 'Start';
+    }
+    row.querySelector('[data-op="restart"]').disabled = !live;
+    row.querySelector('[data-op="logs"]').disabled = false;
+    row.querySelector('[data-op="folder"]').disabled = !c.hasPath || c.orphan;
+}
+
+// Keep each row element alive across refreshes, re-sorts and section moves so transitions and hover state survive.
+function sync(holder, items) {
+    const wanted = items.map((c) => {
+        const row = rows.get(c.name) ?? createRow(c.name);
+        render(row, c);
+        return row;
+    });
+    wanted.forEach((row, index) => {
+        if (holder.children[index] !== row) {
+            holder.insertBefore(row, holder.children[index] ?? null);
+        }
+    });
+    while (holder.children.length > wanted.length) {
+        holder.lastElementChild.remove();
+    }
+}
+
+/** One section per group, in name order with Other last; a lone section needs no header of its own. */
+function layout() {
+    const sections = new Map();
+    for (const c of [...containers].sort(compare)) {
+        const name = sectionOf(c);
+        sections.set(name, [...(sections.get(name) ?? []), c]);
+    }
+    const names = [...sections.keys()].sort(bySectionName);
+    const holder = $('groups');
+    names.forEach((name, index) => {
+        const element = groupElement(name);
+        if (holder.children[index] !== element) {
+            holder.insertBefore(element, holder.children[index] ?? null);
+        }
+        element.querySelector('.section-head').hidden = names.length === 1;
+        element.querySelector('.count').textContent = sections.get(name).length;
+        sync(element.querySelector('.rows'), sections.get(name));
+    });
+    for (const [name, element] of groups) {
+        if (!sections.has(name)) {
+            element.remove();
+            groups.delete(name);
+        }
+    }
+    holder.querySelectorAll('.sort').forEach((button) => {
+        button.classList.toggle('current', button.dataset.sort === sort.key);
+        button.classList.toggle('asc', button.dataset.sort === sort.key && sort.dir > 0);
+    });
+    $('containers-empty').hidden = containers.length > 0;
+}
+
+function snapshot(message) {
+    const now = performance.now();
+    if (lastSnapshot) {
+        interval = interval * 0.8 + ((now - lastSnapshot) / 1000) * 0.2;
+    }
+    lastSnapshot = now;
+    containers = message.containers;
+    const cpusBefore = capacity?.wsl.cpus;
+    capacity = message.capacity;
+    refreshRemoved(cpusBefore);
+    const names = new Set(containers.map((c) => c.name));
+    for (const name of rows.keys()) {
+        if (!names.has(name)) {
+            rows.delete(name);
+        }
+    }
+
+    layout();
+
+    const live = containers.filter(running);
+    const orphans = containers.filter((c) => c.orphan);
+    $('running').textContent = live.length;
+    $('total').textContent = `/ ${containers.length}`;
+    renderTotals(live.reduce((sum, c) => sum + (c.cpu ?? 0), 0), live.reduce((sum, c) => sum + (c.memoryBytes ?? 0), 0));
+    $('orphans').textContent = orphans.length;
+    setTone($('orphan-tile'), orphans.length ? 'amber' : 'neutral');
+    $('reap').disabled = orphans.length === 0;
+
+    $('live').classList.remove('offline');
+    $('live-text').textContent = 'Live';
+    $('error').hidden = true;
+    updateExpandAll();
+}
+
+/** The CPU and memory tiles are shares of WSL; the Windows row under them shows the same totals against the PC. */
+function renderTotals(cores, memoryBytes) {
+    const { wsl, windows } = capacity;
+    $('cpu-total').textContent = percent(share(cores, wsl.cpus));
+    $('cpu-total-of').textContent = `of ${whose(capacity)} ${wsl.cpus} processors`;
+    $('memory-total').textContent = bytes(memoryBytes);
+    $('memory-total-of').textContent = `${percent(share(memoryBytes, wsl.memoryBytes))} of ${whose(capacity)} ${bytes(wsl.memoryBytes)}`;
+    $('windows-cpu').textContent = percent(share(cores, windows.cpus));
+    $('windows-cpu-of').textContent = `of ${windows.cpus} processors`;
+    $('windows-memory').textContent = percent(share(memoryBytes, windows.memoryBytes));
+    $('windows-memory-of').textContent = `of ${bytes(windows.memoryBytes)}`;
+    $('wsl-size').textContent = capacity.wslMeasured ? size(wsl) : 'not measured yet';
+    $('wsl-size-note').textContent = capacity.wslMeasured ? 'what containers see' : "Windows' size stands in";
+}
+
+// ---------- Actions ----------
+
+function act(name, op) {
+    const c = containers.find((item) => item.name === name);
+    if (!c) {
+        return;
+    }
+    switch (op) {
+        case 'remove':
+            confirm({
+                title: `Remove ${c.title}?`,
+                message: 'The container is stopped and deleted.',
+                detail: `wslc remove --force ${name}`,
+                action: 'Remove',
+            }).then((ok) => ok && post({ type: 'container', name, op: 'remove' }));
+            break;
+        case 'toggle':
+            post({ type: 'container', name, op: running(c) ? 'stop' : 'start' });
+            break;
+        case 'restart':
+            post({ type: 'container', name, op: 'restart' });
+            break;
+        case 'logs':
+            window.dispatchEvent(new CustomEvent('watcher:logs', { detail: { name } }));
+            break;
+        case 'inspect':
+        case 'shell':
+        case 'files':
+            window.dispatchEvent(new CustomEvent(`watcher:${op === 'shell' ? 'inspect' : op}`, { detail: { name, tab: op === 'shell' ? 'terminal' : undefined } }));
+            break;
+        case 'folder':
+            post({ type: 'folder', path: c.path });
+            break;
+    }
+}
+
+$('reap').addEventListener('click', () => {
+    const orphans = containers.filter((c) => c.orphan);
+    confirm({
+        title: `Reap ${orphans.length} orphaned ${orphans.length === 1 ? 'container' : 'containers'}?`,
+        message: 'Their folders were deleted. Each container is stopped and deleted.',
+        detail: orphans.map((c) => c.name).join('\n'),
+        action: 'Reap',
+    }).then((ok) => ok && orphans.forEach((c) => post({ type: 'container', name: c.name, op: 'remove', source: 'reap' })));
+});
+
+// ---------- Removed containers ----------
+
+const removedPageSize = 10;
+const removals = {
+    reap: { label: 'Reaped', tone: 'amber' },
+    watcher: { label: 'Removed in Watcher', tone: 'neutral' },
+    outside: { label: 'Removed outside Watcher', tone: 'outside' },
+};
+let removedOpen = localStorage.getItem('removed-open') === 'true';
+let removedOffset = 0;
+let removedTotal = 0;
+// Null until a page is fetched while open, so a reopened list never flashes the empty state.
+let removedItems = null;
+let removedTicket = 0;
+
+/** 40 s, 12 min, 5 h, 3 days. */
+function lifetime(ms) {
+    const minutes = Math.floor(ms / 60_000);
+    if (minutes < 1) {
+        return `${Math.max(0, Math.round(ms / 1000))} s`;
+    }
+    if (minutes < 60) {
+        return `${minutes} min`;
+    }
+    const hours = Math.floor(minutes / 60);
+
+    return hours < 48 ? `${hours} h` : `${Math.floor(hours / 24)} days`;
+}
+
+const avgCpu = (c) => (c.avgCpuCores == null || !capacity ? '—' : percent(share(c.avgCpuCores, capacity.wsl.cpus)));
+
+function removedRow(c) {
+    const row = $('removed-template').content.firstElementChild.cloneNode(true);
+    const how = removals[c.removedBy] ?? removals.outside;
+    row.classList.add(`tone-${how.tone}`);
+    row.querySelector('.name').textContent = c.title;
+    row.querySelector('.name').title = c.name;
+    row.querySelector('.sub').textContent = c.path ?? c.image;
+    row.querySelector('.sub').title = c.path ?? c.image;
+    row.querySelector('.group-cell').textContent = sectionOf(c);
+    row.querySelector('.port').textContent = c.port || '—';
+    row.querySelector('.badge').textContent = how.label;
+    const at = row.querySelector('.at');
+    at.dataset.at = c.removedAt;
+    at.textContent = ago(c.removedAt);
+    at.title = `${day(c.removedAt)} ${clock(c.removedAt)}`;
+    row.querySelector('.lifetime').textContent = lifetime(c.removedAt - c.firstSeen);
+    row.querySelector('.peak').textContent = c.peakMemory == null ? '—' : bytes(c.peakMemory);
+    row.querySelector('.avg').textContent = avgCpu(c);
+    if (c.hasFolder) {
+        row.classList.add('opens');
+        row.title = `Open ${c.path}`;
+        row.addEventListener('click', () => post({ type: 'folder', path: c.path }));
+    }
+
+    return row;
+}
+
+function renderRemoved() {
+    const items = removedItems ?? [];
+    const loaded = removedItems !== null;
+    $('removed').classList.toggle('open', removedOpen);
+    $('removed-toggle').setAttribute('aria-expanded', String(removedOpen));
+    $('removed-count').textContent = removedTotal;
+    $('removed-body').hidden = !removedOpen;
+    $('removed-rows').replaceChildren(...items.map(removedRow));
+    $('removed-columns').hidden = items.length === 0;
+    $('removed-empty').hidden = !loaded || removedTotal > 0;
+    $('removed-pager').hidden = !loaded || removedTotal <= removedPageSize;
+    $('removed-range').textContent = `${removedOffset + 1}–${removedOffset + items.length} of ${removedTotal}`;
+    $('removed-prev').disabled = removedOffset === 0;
+    $('removed-next').disabled = removedOffset + items.length >= removedTotal;
+}
+
+/** Collapsed, only the count is asked for. A page that live removals emptied steps back to the last one. */
+async function loadRemoved() {
+    const mine = ++removedTicket;
+    const open = removedOpen;
+    try {
+        const page = await request('removed', open ? { offset: removedOffset, limit: removedPageSize } : { offset: 0, limit: 0 });
+        if (mine !== removedTicket) {
+            return;
+        }
+        if (open && page.items.length === 0 && removedOffset > 0) {
+            removedOffset = Math.max(0, Math.ceil(page.total / removedPageSize) - 1) * removedPageSize;
+            loadRemoved();
+            return;
+        }
+        removedTotal = page.total;
+        if (open) {
+            removedItems = page.items;
+        }
+        $('removed-error').hidden = true;
+        renderRemoved();
+    } catch (error) {
+        $('removed-error').textContent = `Could not read the database: ${error.message}`;
+        $('removed-error').hidden = false;
+    }
+}
+
+$('removed-toggle').addEventListener('click', () => {
+    removedOpen = !removedOpen;
+    localStorage.setItem('removed-open', String(removedOpen));
+    removedItems = null;
+    renderRemoved();
+    removedOpen ? loadRemoved() : ++removedTicket;
+});
+$('removed-prev').addEventListener('click', () => {
+    removedOffset = Math.max(0, removedOffset - removedPageSize);
+    loadRemoved();
+});
+$('removed-next').addEventListener('click', () => {
+    removedOffset += removedPageSize;
+    loadRemoved();
+});
+
+/** Relative times age and WSL's size can change; neither needs the list fetched again. */
+function refreshRemoved(cpusBefore) {
+    if (removedItems && capacity.wsl.cpus !== cpusBefore) {
+        renderRemoved();
+        return;
+    }
+    $('removed-rows').querySelectorAll('[data-at]').forEach((element) => {
+        const value = ago(Number(element.dataset.at));
+        if (element.textContent !== value) {
+            element.textContent = value;
+        }
+    });
+}
+
+// A remove action can land just after the snapshot that saw the container go, and that changes how it was removed.
+const changesRemoved = (event) =>
+    event.kind === 'disappeared' || event.kind === 'appeared' || (event.kind === 'action' && event.detail?.op === 'remove');
+
+renderRemoved();
+loadRemoved();
+
+// ---------- Dialog ----------
+
+let settle = null;
+
+function confirm({ title, message, detail = '', action = null }) {
+    settle?.(false);
+    $('modal-title').textContent = title;
+    $('modal-message').textContent = message;
+    $('modal-detail').textContent = detail;
+    $('modal-confirm').hidden = action === null;
+    $('modal-confirm').textContent = action ?? '';
+    $('modal-cancel').textContent = action === null ? 'Close' : 'Cancel';
+    $('modal').hidden = false;
+    (action === null ? $('modal-cancel') : $('modal-confirm')).focus();
+
+    return new Promise((resolve) => {
+        settle = (ok) => {
+            settle = null;
+            $('modal').hidden = true;
+            resolve(ok);
+        };
+    });
+}
+
+$('modal-cancel').addEventListener('click', () => settle?.(false));
+$('modal-confirm').addEventListener('click', () => settle?.(true));
+$('modal').addEventListener('mousedown', (event) => event.target === $('modal') && settle?.(false));
+document.addEventListener('keydown', (event) => event.key === 'Escape' && settle?.(false));
+
+// ---------- Host messages ----------
+
+registerPage('containers', { title: 'Containers' });
+
+on('snapshot', snapshot);
+on('event', ({ event }) => changesRemoved(event) && loadRemoved());
+on('busy', (data) => {
+    data.busy ? busy.add(data.name) : busy.delete(data.name);
+    rows.get(data.name)?.classList.toggle('busy', data.busy);
+});
+on('error', (data) => confirm({ title: data.title, message: 'wslc reported an error.', detail: data.message }));
+on('missing', () => {
+    $('missing').hidden = false;
+    $('missing').closest('.page').classList.add('no-wslc');
+});
+on('offline', (data) => {
+    $('live').classList.add('offline');
+    $('live-text').textContent = 'Offline';
+    $('error').textContent = data.message;
+    $('error').hidden = false;
+});
