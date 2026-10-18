@@ -417,7 +417,7 @@ public partial class MainWindow : Window
         base.OnSourceInitialized(e);
         var handle = new WindowInteropHelper(this).Handle;
         // DWMWA_USE_IMMERSIVE_DARK_MODE, WINDOW_CORNER_PREFERENCE = DONOTROUND, BORDER_COLOR (0x00BBGGRR).
-        foreach (var (attribute, value) in new[] { (20, 1), (33, 1), (34, 0x002E2E2E) })
+        foreach (var (attribute, value) in new[] { (20, 1), (33, 1), (34, 0x00231F1F) })
         {
             var data = value;
             DwmSetWindowAttribute(handle, attribute, ref data, sizeof(int));

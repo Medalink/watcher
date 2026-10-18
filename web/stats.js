@@ -31,7 +31,7 @@ async function load() {
 function selectRange(next) {
     range = next;
     localStorage.setItem('stats-range', range);
-    document.querySelectorAll('#stats-range button').forEach((b) => b.classList.toggle('current', b.dataset.range === range));
+    document.querySelectorAll('#stats-range button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.range === range)));
     load();
 }
 
@@ -157,7 +157,7 @@ function chart(holder, read, axis, format, label = format, unit = '') {
     holder.replaceChildren();
     if (series.length === 0) {
         const note = document.createElement('div');
-        note.className = 'empty-note';
+        note.className = 'sd-plot-note';
         note.textContent = 'No samples in this range yet. The monitor records one every few seconds while it is open.';
         holder.appendChild(note);
         return;
@@ -182,7 +182,7 @@ function chart(holder, read, axis, format, label = format, unit = '') {
     }
     if (unit) {
         const middle = pad.top + plotHeight / 2;
-        element('text', { class: 'unit', x: 12, y: middle, 'text-anchor': 'middle', transform: `rotate(-90 12 ${middle})` }, svg).textContent = unit;
+        element('text', { x: 12, y: middle, 'text-anchor': 'middle', transform: `rotate(-90 12 ${middle})` }, svg).textContent = unit;
     }
 
     const base = y(0);
@@ -197,9 +197,9 @@ function chart(holder, read, axis, format, label = format, unit = '') {
     }
 
     const cross = element('line', { class: 'cross', y1: pad.top, y2: pad.top + plotHeight, visibility: 'hidden' }, svg);
-    const marker = element('circle', { class: 'marker-dot', r: 3, visibility: 'hidden' }, svg);
+    const marker = element('circle', { class: 'dot', r: 3, visibility: 'hidden' }, svg);
     const readout = document.createElement('div');
-    readout.className = 'readout';
+    readout.className = 'sd-plot-readout';
     readout.hidden = true;
     holder.appendChild(readout);
 
@@ -223,8 +223,8 @@ function chart(holder, read, axis, format, label = format, unit = '') {
             marker.setAttribute('cy', y(read(nearest)));
         }
         readout.innerHTML = hit
-            ? `${moment(nearest.at)}<span class="num">${format(read(nearest))}</span>`
-            : `${moment(at)}<span class="num">no data</span>`;
+            ? `${moment(nearest.at)}<b>${format(read(nearest))}</b>`
+            : `${moment(at)}<b>no data</b>`;
         readout.hidden = false;
         const left = cx + 12 + readout.offsetWidth > width ? cx - 12 - readout.offsetWidth : cx + 12;
         readout.style.left = `${left}px`;
@@ -269,10 +269,10 @@ function renderTable() {
         return order * sort.dir;
     });
     const head = `<thead><tr>${columns.map((c) =>
-        `<th data-key="${c.key}"${c.title ? ` title="${escape(typeof c.title === 'function' ? c.title() : c.title)}"` : ''} class="${c.key === sort.key ? `sorted${sort.dir > 0 ? ' asc' : ''}` : ''}">${c.label}</th>`).join('')}</tr></thead>`;
+        `<th data-key="${c.key}" data-sort="${c.key}"${c.title ? ` title="${escape(typeof c.title === 'function' ? c.title() : c.title)}"` : ''}${c.key === sort.key ? ` aria-sort="${sort.dir > 0 ? 'ascending' : 'descending'}"` : ''}>${c.label}</th>`).join('')}</tr></thead>`;
     const body = rows.map((row) => `<tr>${columns.map((c) => c.text
         ? `<td title="${escape(row.name)}">${escape(row.title)}${row.title !== row.name ? `<span class="sub">${escape(row.name)}</span>` : ''}</td>`
-        : `<td class="num">${c.format(row[c.key])}</td>`).join('')}</tr>`).join('');
+        : `<td class="sd-num">${c.format(row[c.key])}</td>`).join('')}</tr>`).join('');
     table.innerHTML = `${head}<tbody>${body}</tbody>`;
     table.hidden = rows.length === 0;
     $('stats-table-empty').hidden = rows.length > 0;
@@ -300,5 +300,5 @@ function renderDatabase() {
         ['Sample interval', db.intervalMs ? `${(db.intervalMs / 1000).toFixed(1)} s` : 'measuring…', true],
         ['Snapshot write', db.writeMsAvg ? `last ${db.writeMsLast.toFixed(2)} ms · avg ${db.writeMsAvg.toFixed(2)} ms` : 'no writes yet', false],
     ];
-    $('stats-db').innerHTML = facts.map(([label, value, mono]) => `<dt>${label}</dt><dd${mono ? ' class="num"' : ''}>${value}</dd>`).join('');
+    $('stats-db').innerHTML = facts.map(([label, value, mono]) => `<dt>${label}</dt><dd${mono ? ' class="sd-num"' : ''}>${value}</dd>`).join('');
 }

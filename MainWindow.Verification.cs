@@ -74,7 +74,7 @@ public partial class MainWindow
                 await using (var shot = File.Create(Path.Combine(folder, "logs-live.png")))
                     await Web.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, shot);
                 results.Add(new { operation = "logs-rendered", ok = true });
-                var files = await EvaluateAsync("(async()=>{const {request}=await import('./app.js');return await request('manage',{operation:'files',parameters:{name:" + encodedName + ",path:'/data'}})})()");
+                var files = await EvaluateAsync("(async()=>{const {request}=await import('./app.js');return await request('manage',{operation:'files',parameters:{name:" + encodedName + ",path:'/data',confirmed:true}})})()");
                 if (!files.GetProperty("entries").EnumerateArray().Any(e => e.GetProperty("name").GetString() == "marker.txt")) throw new InvalidOperationException("The files bridge did not list the mounted fixture marker.");
                 results.Add(new { operation = "files", data = files });
                 var copyPath = Path.Combine(folder, "copied-marker.txt");
@@ -82,7 +82,7 @@ public partial class MainWindow
                 if (!File.Exists(copyPath) || await File.ReadAllTextAsync(copyPath) != "watcher-backup") throw new InvalidOperationException("The native copy did not preserve the fixture marker.");
                 results.Add(new { operation = "copy-out", ok = true });
                 await BridgeAsync("copy", new { name, containerPath = "/data/", hostPath = copyPath, direction = "in", confirmed = true });
-                var imported = await BridgeAsync("files", new { name, path = "/data/copied-marker.txt" });
+                var imported = await BridgeAsync("files", new { name, path = "/data/copied-marker.txt", confirmed = true });
                 if (imported.GetProperty("text").GetString() != "watcher-backup") throw new InvalidOperationException("The native copy into the container did not preserve the marker.");
                 results.Add(new { operation = "copy-in", ok = true });
                 var stopped = await BridgeAsync("bulk", new { names = new[] { name }, op = "stop", timeout = 5 });
@@ -110,7 +110,7 @@ public partial class MainWindow
                 var port = Environment.GetEnvironmentVariable("WATCHER_VERIFY_PORT");
                 if (int.TryParse(port, out var hostPort))
                 {
-                    var probe = await EvaluateAsync("(async()=>{const {request}=await import('./app.js');return await request('manage',{operation:'readiness',parameters:{name:" + encodedName + ",url:'http://127.0.0.1:" + hostPort + "/'}})})()");
+                    var probe = await EvaluateAsync("(async()=>{const {request}=await import('./app.js');return await request('manage',{operation:'readiness',parameters:{name:" + encodedName + ",url:'http://127.0.0.1:" + hostPort + "/',confirmed:true}})})()");
                     if (!probe.GetProperty("ok").GetBoolean() || probe.GetProperty("status").GetInt32() != 200) throw new InvalidOperationException("The Windows HTTP readiness probe did not reach the fixture.");
                     results.Add(new { operation = "readiness", data = probe });
                 }
