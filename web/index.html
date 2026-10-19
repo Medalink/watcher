@@ -8,14 +8,30 @@
     <link rel="stylesheet" href="management.css">
 </head>
 <body>
-<div class="shell">
-    <nav class="sd-rail">
+<div class="sd-shell">
+    <canvas class="sd-rain" data-sd-rain data-sd-rain-style="squares" aria-hidden="true"></canvas>
+
+    <header class="sd-titlebar topbar drag">
+        <div class="sd-titlebar-start">
+            <span class="crumb"><span class="sd-dot"></span> <span id="crumb">Containers</span></span>
+        </div>
+        <div class="sd-titlebar-end no-drag">
+            <div class="sd-window-controls">
+                <button data-sd-window="minimize" aria-label="Minimize"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 6h8"/></svg></button>
+                <button data-sd-window="maximize" aria-label="Maximize" id="maximize">
+                    <svg viewBox="0 0 12 12" class="sd-icon-maximize when-normal" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="2.5" width="7" height="7"/></svg>
+                    <svg viewBox="0 0 12 12" class="sd-icon-restore when-max" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="3.5" width="7" height="7"/><path d="M4.5 3.5v-2h6v6h-2"/></svg>
+                </button>
+                <button data-sd-window="close" aria-label="Close"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button>
+            </div>
+        </div>
+    </header>
+
+    <nav class="sd-rail" aria-label="Pages" data-sd-ornaments="bottom" data-sd-ornaments-size="200">
         <div class="sd-rail-home drag" title="Watcher">
-            <svg viewBox="0 0 32 32" aria-hidden="true">
-                <rect width="32" height="32" fill="currentColor"/>
-                <path d="M4 16Q16 5 28 16Q16 27 4 16Z" fill="var(--sd-canvas)"/>
-                <circle cx="16" cy="16" r="4.6" fill="currentColor"/>
-                <circle cx="16" cy="16" r="2" fill="var(--sd-canvas)"/>
+            <svg viewBox="0 0 24 24" class="icon" aria-hidden="true">
+                <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/>
+                <circle cx="12" cy="12" r="3"/>
             </svg>
         </div>
         <div class="sd-rail-list">
@@ -32,24 +48,18 @@
                 <span>Activity</span>
             </a>
         </div>
+        <div class="sd-rail-tools">
+            <button class="sd-rail-item" data-sd-rain-toggle data-sd-tip="Digital rain" data-sd-tip-side="right" aria-label="Digital rain" aria-pressed="false">
+                <svg viewBox="0 0 24 24" class="icon"><path d="M6 3v6M6 12v2M12 6v9M12 18v2M18 3v4M18 10v8"/></svg>
+            </button>
+            <button class="sd-rail-item" data-sd-theme-cycle data-sd-tip="Next theme (Shift+T)" data-sd-tip-side="right" aria-label="Next theme">
+                <svg viewBox="0 0 24 24" class="icon"><rect x="4" y="4" width="16" height="16"/><path d="M12 4v16"/><path d="M12 4h8v16h-8z" fill="currentColor" stroke="none"/></svg>
+            </button>
+        </div>
     </nav>
 
-    <main class="main">
-        <header class="sd-titlebar topbar drag">
-            <div class="sd-titlebar-start">
-                <span class="crumb"><span class="sd-dot"></span> <span id="crumb">Containers</span></span>
-            </div>
-            <div class="sd-titlebar-end no-drag">
-                <div class="sd-window-controls">
-                    <button data-sd-window="minimize" aria-label="Minimize"><svg viewBox="0 0 12 12"><path d="M2 6h8"/></svg></button>
-                    <button data-sd-window="maximize" aria-label="Maximize" id="maximize">
-                        <svg viewBox="0 0 12 12" class="sd-icon-maximize when-normal"><rect x="2.5" y="2.5" width="7" height="7"/></svg>
-                        <svg viewBox="0 0 12 12" class="sd-icon-restore when-max"><rect x="1.5" y="3.5" width="7" height="7"/><path d="M4.5 3.5v-2h6v6h-2"/></svg>
-                    </button>
-                    <button data-sd-window="close" aria-label="Close"><svg viewBox="0 0 12 12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button>
-                </div>
-            </div>
-        </header>
+    <main class="sd-shell-main">
+        <div class="sd-shell-content" data-sd-ornaments data-sd-edges>
 
         <section class="page" data-page="containers">
             <div class="heading">
@@ -59,7 +69,6 @@
                 </div>
                 <div class="sd-cluster heading-side">
                     <button class="sd-btn sd-btn-sm" id="expand-all" hidden>Expand all</button>
-                    <span class="sd-status" id="live"><span id="live-text">Connecting</span></span>
                 </div>
             </div>
 
@@ -86,7 +95,7 @@
                 <div class="sd-stat-box" id="orphan-tile">
                     <span class="sd-stat-label">Orphaned</span>
                     <span class="sd-stat-value" id="orphans">0</span>
-                    <span class="sd-stat-end"><button class="sd-btn sd-btn-primary sd-btn-sm" data-tone="warning" id="reap" disabled title="Remove every container whose folder was deleted">Reap</button></span>
+                    <span class="sd-stat-end"><button class="sd-btn sd-btn-primary sd-btn-sm" data-tone="danger" id="reap" disabled title="Remove every container whose folder was deleted">Reap</button></span>
                 </div>
             </section>
 
@@ -259,7 +268,16 @@
             <button class="sd-btn more" id="activity-more" hidden>Load more</button>
             <p class="sd-note" data-tone="danger" id="activity-error" hidden></p>
         </section>
+
+        </div>
     </main>
+
+    <footer class="sd-statusbar sd-shell-status">
+        <span class="sd-status" id="live"><span id="live-text">Connecting</span></span>
+        <span class="sd-statusbar-end"><span class="sd-fps" data-sd-fps data-sd-tip="Frame rate" data-sd-tip-side="top"><b>--</b> fps</span></span>
+    </footer>
+
+    <div class="sd-shell-scrim" data-sd-shell="close"></div>
 </div>
 
 <!-- Resize handles: the window has no native frame, so the page hands edge presses to Windows. -->
@@ -272,19 +290,17 @@
 <div class="edge e-bottomleft" data-edge="bottomleft"></div>
 <div class="edge e-bottomright" data-edge="bottomright"></div>
 
-<div class="modal" id="modal" hidden>
-    <div class="dialog sd-dialog">
-        <h3 class="sd-dialog-head"><span class="sd-dot"></span> <span id="modal-title"></span></h3>
-        <div class="sd-dialog-body">
-            <p id="modal-message"></p>
-            <pre id="modal-detail"></pre>
-        </div>
-        <div class="sd-dialog-foot">
-            <button class="sd-btn" id="modal-cancel">Cancel</button>
-            <button class="sd-btn" data-tone="danger" id="modal-confirm"></button>
-        </div>
+<dialog class="sd-dialog" id="modal">
+    <h3 class="sd-dialog-head"><span><span class="sd-dot"></span> <span id="modal-title"></span></span></h3>
+    <div class="sd-dialog-body">
+        <p id="modal-message"></p>
+        <pre id="modal-detail"></pre>
     </div>
-</div>
+    <div class="sd-dialog-foot">
+        <button class="sd-btn" id="modal-cancel">Cancel</button>
+        <button class="sd-btn" data-tone="danger" id="modal-confirm"></button>
+    </div>
+</dialog>
 
 <template id="group-template">
     <section class="group">

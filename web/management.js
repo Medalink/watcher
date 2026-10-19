@@ -304,7 +304,7 @@ document.addEventListener('keydown', (event) => {
     const top = stack.at(-1);
     const shared = $('modal');
     // The shared error dialog sits above ours and owns the keyboard while it is open.
-    if (!top || (shared && !shared.hidden)) {
+    if (!top || (shared && shared.open)) {
         return;
     }
     if (event.key === 'Escape') {
@@ -400,7 +400,7 @@ rail?.append(
 function page(name, heading, intro, side = null) {
     const section = el('section', { class: 'page mg-page', dataset: { page: name }, hidden: true },
         el('div', { class: 'heading' }, el('div', {}, el('h1', {}, heading), el('p', {}, intro)), side));
-    document.querySelector('.main')?.append(section);
+    document.querySelector('.sd-shell-content')?.append(section);
 
     return section;
 }

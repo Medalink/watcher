@@ -17,12 +17,9 @@
 /* One grid for the column captions and every row, so they line up. */
 :root { --cols: 34px minmax(170px, 1.2fr) 132px minmax(150px, 1fr) minmax(200px, 1.1fr) 100px 100px 136px; }
 
-/* ---------- Shell ---------- */
-
-.shell { display: grid; grid-template-columns: 6rem minmax(0, 1fr); height: 100vh; }
-
-/* min-height: 0 lets the page scroll inside the window instead of growing past it. */
-.main { display: grid; grid-template-rows: 2.25rem minmax(0, 1fr); min-width: 0; min-height: 0; height: 100vh; }
+/* ---------- Shell ----------
+ * The frame itself is the kit's .sd-shell (rail, title row, content, status
+ * bar); app.css only places app content inside .sd-shell-content. */
 
 .topbar { padding-inline-start: 24px; }
 .crumb {
@@ -30,7 +27,7 @@
     font-size: var(--text-sm); font-weight: 600;
 }
 
-.page { overflow-y: auto; padding: 24px 24px 40px; }
+.page { min-width: 0; }
 
 /* ---------- Heading and tiles ---------- */
 
@@ -269,9 +266,10 @@
 
 /* ---------- Dialog ---------- */
 
-.modal { position: fixed; inset: 0; background: var(--sd-backdrop); display: grid; place-items: center; z-index: 50; padding: 24px; }
-.modal .sd-dialog { width: min(560px, 100%); max-height: calc(100vh - 48px); overflow-y: auto; }
-.modal .sd-dialog pre { user-select: text; }
+/* The shared confirm/error dialog is a native <dialog class="sd-dialog">: the
+   kit frames it (overlay background, border, backdrop). Only app specifics here. */
+#modal { width: min(560px, 100%); }
+#modal pre { user-select: text; }
 
 /* ---------- Window edges ---------- */
 
@@ -292,7 +290,6 @@ body.maximized .when-max { display: block; }
 body.maximized .when-normal { display: none; }
 
 @media (max-width: 1199px) {
-    .page { padding-inline: 16px; }
     .heading-side { flex-wrap: wrap; }
     .tiles { gap: 12px; }
     .sd-stat-box { padding-inline: 16px; }

@@ -9,13 +9,30 @@
  * Levels: "full" (1), "subtle" (0.4), "off". Remembered in localStorage
  * under sd-chart-effects when set through setEffectsLevel().
  */
-import { rgba } from "./theme.js";
+import { rgba as rgbaExact } from "./theme.js";
+
+// Packets and tails ask for many alpha steps of a few colors every frame;
+// reuse the strings instead of building new ones each time.
+const strings = new Map();
+function rgba(c, alpha = 1) {
+  if (!c) return "transparent";
+  const key = `${c.r},${c.g},${c.b},${c.a},${Math.round(alpha * 64)}`;
+  let s = strings.get(key);
+  if (!s) {
+    if (strings.size > 4000) strings.clear();
+    s = rgbaExact(c, Math.round(alpha * 64) / 64);
+    strings.set(key, s);
+  }
+  return s;
+}
 
 export const EFFECTS = {
   flow: { size: 2.6, tail: 16, spacing: 70, alpha: 0.55, baseSpeed: 12, speedScale: 130, surgeGain: 0.9, surgeDecay: 1.1 },
   heartbeat: { dot: 2.5, ring: 18, ringMs: 700, staleAfter: 2, deadAfter: 4 },
   sonar: { intervalMs: 3200, maxRadius: 26, alpha: 0.45 },
   governor: { fullFps: 45, subtleFps: 30, suspendFps: 20, recoverFps: 55 },
+  /** Draw rate. Packets move slowly; 30 is smooth and halves the work. */
+  fps: 30,
 };
 const LEVELS = { off: 0, subtle: 0.4, full: 1 };
 const KEY = "sd-chart-effects";
@@ -318,7 +335,7 @@ function packet(xMs) {
 
 /* ---- the shared loop and governor ------------------------------------ */
 
-let frame = 0;
+let scheduled = false;
 let last = 0;
 let tier = 0;
 let frames = 0;
@@ -334,30 +351,52 @@ function nextTier(fps) {
   return tier;
 }
 
+// Ask for a frame only when one is due (EFFECTS.fps), so the page is not
+// woken at the display's full rate just to skip most frames.
+function schedule(delay = 0) {
+  if (scheduled) return;
+  scheduled = true;
+  const go = () => requestAnimationFrame(loop);
+  if (delay > 1) setTimeout(go, delay);
+  else go();
+}
+
 function loop(now) {
-  frame = 0;
+  scheduled = false;
   const live = [...layers].filter((l) => l.active);
-  for (const l of layers) if (!l.active) l.ctx.clearRect(0, 0, l.width, l.height);
+  for (const l of layers) {
+    // Clear a layer once when it goes quiet, not on every frame after.
+    if (!l.active && !l.cleared) {
+      l.ctx.clearRect(0, 0, l.width, l.height);
+      l.cleared = true;
+    }
+  }
   if (!live.length) {
     last = 0;
+    sampleStart = 0;
     return;
   }
-  const dt = last ? Math.min((now - last) / 1000, 0.064) : 0;
+  const dt = last ? Math.min((now - last) / 1000, 0.1) : 0;
   last = now;
   frames++;
   if (!sampleStart) sampleStart = now;
   if (now - sampleStart >= 1000) {
-    tier = nextTier((frames * 1000) / (now - sampleStart));
+    // Drawn frames against the target rate, expressed on a 60 fps scale for
+    // the governor: on time is 60, half as many is 30.
+    tier = nextTier(((frames * 1000) / (now - sampleStart)) * (60 / EFFECTS.fps));
     frames = 0;
     sampleStart = now;
   }
   // Suspended still samples the frame rate, so it can recover.
-  for (const l of live) l.tick(dt, now, SCALES[tier]);
-  frame = requestAnimationFrame(loop);
+  for (const l of live) {
+    l.cleared = false;
+    l.tick(dt, now, SCALES[tier]);
+  }
+  schedule(1000 / EFFECTS.fps - (performance.now() - now) - 6);
 }
 
 export function wake() {
-  if (!frame) frame = requestAnimationFrame(loop);
+  schedule();
 }
 document.addEventListener("visibilitychange", wake);
 

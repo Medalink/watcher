@@ -13,7 +13,11 @@
  * Fires "sd:shell" on the shell with detail { sidebar, aside, drawer, section }.
  */
 const KEY = "sd-shell-sidebar";
-const phone = () => matchMedia("(max-width: 48rem)").matches;
+const phone = () => matchMedia("(max-width: 47.99rem)").matches;
+// Tablets keep the rail and content; the sidebar peeks in when a section is picked.
+const TABLET = "(min-width: 48rem) and (max-width: 63.99rem)";
+// Below 75rem the right panel floats over the content.
+const floatingAside = () => matchMedia("(max-width: 74.99rem)").matches;
 
 function emit(shell) {
   shell.dispatchEvent(
@@ -75,10 +79,13 @@ export function setDrawer(shell, open) {
 }
 
 function closeOverlays(shell) {
-  const had = "peek" in shell.dataset || "drawer" in shell.dataset;
+  // Where the right panel floats over the page, it closes like the others.
+  const aside = floatingAside() && shell.dataset.aside === "open";
+  const had = "peek" in shell.dataset || "drawer" in shell.dataset || aside;
   delete shell.dataset.peek;
+  if (aside) setAside(shell, false);
   if ("drawer" in shell.dataset) setDrawer(shell, false);
-  else if (had) emit(shell);
+  else if (had && !aside) emit(shell);
   return had;
 }
 
@@ -126,12 +133,14 @@ export function onShellClick(event) {
 
 export function onShellKeydown(event) {
   if (event.key !== "Escape") return;
-  for (const shell of document.querySelectorAll(".sd-shell[data-peek], .sd-shell[data-drawer]")) {
+  for (const shell of document.querySelectorAll(".sd-shell[data-peek], .sd-shell[data-drawer], .sd-shell[data-aside='open']")) {
     if (closeOverlays(shell)) event.preventDefault();
   }
 }
 
 /** Restore the remembered sidebar state and set ARIA on every shell. */
+let tabletWatch = null;
+
 export function initShell(root = document) {
   let saved = null;
   try {
@@ -142,6 +151,29 @@ export function initShell(root = document) {
   for (const shell of root.querySelectorAll(".sd-shell")) {
     if (saved === "collapsed") shell.dataset.sidebar = "collapsed";
     else if (saved === "pinned") delete shell.dataset.sidebar;
+    // Where the right panel would cover the page, it starts closed.
+    if (floatingAside() && shell.dataset.aside === "open") delete shell.dataset.aside;
+    // Tablets start with the sidebar tucked away (not remembered).
+    if (matchMedia(TABLET).matches) shell.dataset.sidebar = "collapsed";
     sync(shell);
+  }
+  if (!tabletWatch) {
+    tabletWatch = matchMedia(TABLET);
+    tabletWatch.addEventListener("change", (e) => {
+      for (const shell of document.querySelectorAll(".sd-shell")) {
+        if (e.matches) shell.dataset.sidebar = "collapsed";
+        else {
+          let pref = null;
+          try {
+            pref = localStorage.getItem(KEY);
+          } catch {
+            /* storage blocked */
+          }
+          if (pref !== "collapsed") delete shell.dataset.sidebar;
+        }
+        delete shell.dataset.peek;
+        sync(shell);
+      }
+    });
   }
 }

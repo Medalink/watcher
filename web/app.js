@@ -1,11 +1,11 @@
 // Shared by every page: the host bridge, window chrome, the router and formatters. Pages import from here
 // and register themselves; this module never imports a page.
 
-// Window control buttons speak the library's data-sd-window contract; the
-// sd:window event is bridged to the host like any other action.
-import { initWindow, onWindowClick } from './vendor/signal/js/window.js';
-initWindow();
-document.addEventListener('click', onWindowClick);
+// The library's init wires the shell: window controls, the digital-rain canvas,
+// ornaments, themes and the fps counter all mount from the declarative attributes
+// in index.html. The sd:window event is bridged to the host like any other action.
+import { init } from './vendor/signal/js/index.js';
+init();
 document.addEventListener('sd:window', ({ detail }) => post({ type: detail.action }));
 
 const host = window.chrome.webview;
