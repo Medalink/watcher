@@ -119,7 +119,8 @@
 .row.expanded .metric .limit { display: block; }
 .cell.mem .value { width: 76px; }
 
-.chart { transition: height .2s var(--ease-out); }
+/* Centred on the 64px row like the value beside it; without the offset a full chart touches the row's top edge. */
+.chart { margin-top: 17px; transition: height .2s var(--ease-out); }
 .row.expanded .chart { height: 132px; border-bottom: 1px solid var(--sd-line); }
 .row.expanded .chart .grid { opacity: 1; }
 .chart .grid { opacity: 0; transition: opacity 160ms var(--ease-out); }
