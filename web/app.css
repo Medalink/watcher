@@ -166,8 +166,8 @@
 .removed { margin-top: 40px; --removed-cols: minmax(170px, 1.5fr) minmax(80px, .6fr) 70px 190px 100px 80px 96px 70px; }
 .removed-toggle { width: 100%; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; }
 .removed:not(.open) .removed-toggle { margin-bottom: 0; }
-.removed-toggle h2 { display: flex; align-items: center; }
-.removed-toggle .chev { display: inline-flex; width: 22px; color: var(--sd-fg-faint); transition: color 120ms var(--ease-out); }
+/* The heading stays inline, not flex, so the spaces around the dot and count render as in the group headings. */
+.removed-toggle .chev { display: inline-flex; width: 22px; vertical-align: -2px; color: var(--sd-fg-faint); transition: color 120ms var(--ease-out); }
 .removed-toggle .chev .icon { width: 14px; height: 14px; transition: transform .2s var(--ease-out); }
 .removed-toggle:hover .chev { color: var(--sd-fg); }
 .removed.open .removed-toggle .chev .icon { transform: rotate(90deg); }
