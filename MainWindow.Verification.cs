@@ -20,7 +20,7 @@ public partial class MainWindow
             await Task.Delay(1000, _closing.Token);
             var name = Environment.GetEnvironmentVariable("WATCHER_VERIFY_CONTAINER") ?? "";
             var encodedName = JsonSerializer.Serialize(name);
-            foreach (var route in new[] { "containers", "manage", "logs", "stats", "activity" })
+            foreach (var route in new[] { "containers", "manage", "logs", "stats", "activity", "resources" })
             {
                 await EvaluateAsync($"location.hash = '#{route}'; true");
                 await Task.Delay(1600, _closing.Token);

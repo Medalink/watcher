@@ -13,7 +13,7 @@
 
     <header class="sd-titlebar topbar drag">
         <div class="sd-titlebar-start">
-            <span class="crumb"><span class="sd-dot"></span> <span id="crumb">Containers</span></span>
+            <span class="crumb"><span id="crumb">Containers</span></span>
         </div>
         <div class="sd-titlebar-end no-drag">
             <div class="sd-window-controls">
@@ -125,7 +125,7 @@
 
             <section class="removed" id="removed">
                 <button class="section-head removed-toggle" id="removed-toggle" aria-expanded="false" aria-controls="removed-body">
-                    <h2><span class="chev"><svg viewBox="0 0 24 24" class="icon"><path d="m9 18 6-6-6-6"/></svg></span><span class="sd-dot"></span> Removed containers <span class="count sd-count" id="removed-count">0</span></h2>
+                    <h2><span class="chev"><svg viewBox="0 0 24 24" class="icon"><path d="m9 18 6-6-6-6"/></svg></span> Removed containers <span class="count sd-count" id="removed-count">0</span></h2>
                 </button>
                 <div id="removed-body" hidden>
                     <div class="removed-columns" id="removed-columns">
@@ -202,21 +202,21 @@
             </section>
 
             <section class="sd-card" data-tone="accent">
-                <div class="sd-card-head"><span class="sd-dot"></span> Total CPU<span class="hint" id="stats-bucket"></span></div>
+                <div class="sd-card-head">Total CPU<span class="hint" id="stats-bucket"></span></div>
                 <div class="sd-card-body">
                     <div class="sd-plot" data-tone="accent" id="stats-cpu"></div>
                 </div>
             </section>
 
             <section class="sd-card" data-tone="extra">
-                <div class="sd-card-head"><span class="sd-dot"></span> Total memory</div>
+                <div class="sd-card-head">Total memory</div>
                 <div class="sd-card-body">
                     <div class="sd-plot" data-tone="extra" id="stats-memory"></div>
                 </div>
             </section>
 
             <section class="sd-card">
-                <div class="sd-card-head"><span class="sd-dot"></span> Containers <span class="count sd-count" id="stats-count"></span></div>
+                <div class="sd-card-head">Containers <span class="count sd-count" id="stats-count"></span></div>
                 <div class="sd-card-body">
                     <div class="table-wrap" id="stats-table-wrap"><table class="sd-table" id="stats-table"></table></div>
                     <p class="sd-empty" id="stats-table-empty" hidden>No container has samples in this range yet.</p>
@@ -225,7 +225,7 @@
             </section>
 
             <section class="sd-card" data-tone="extra">
-                <div class="sd-card-head"><span class="sd-dot"></span> Database<button class="sd-btn sd-btn-sm" id="stats-open-folder">Open folder</button></div>
+                <div class="sd-card-head">Database<button class="sd-btn sd-btn-sm" id="stats-open-folder">Open folder</button></div>
                 <div class="sd-card-body">
                     <dl class="facts sd-kv db-facts" id="stats-db"></dl>
                 </div>
@@ -245,7 +245,7 @@
             <div class="toolbar">
                 <div class="chips" id="activity-groups">
                     <button class="chip sd-chip" data-group="lifecycle" title="appeared, disappeared, state, orphaned, port">Lifecycle</button>
-                    <button class="chip sd-chip" data-group="alerts" title="cpu-high, cpu-normal, memory-high, memory-normal">Alerts</button>
+                    <button class="chip sd-chip" data-group="alerts" title="cpu-high, cpu-normal, memory-high, memory-normal, limit">Alerts</button>
                     <button class="chip sd-chip" data-group="actions" title="stop, start, restart and remove from this app">Actions</button>
                     <button class="chip sd-chip" data-group="monitor" title="monitor started or stopped, wslc offline or online">Monitor</button>
                     <button class="chip sd-chip" data-group="runtime" title="native container events and collection gaps">Runtime</button>
@@ -291,7 +291,7 @@
 <div class="edge e-bottomright" data-edge="bottomright"></div>
 
 <dialog class="sd-dialog" id="modal">
-    <h3 class="sd-dialog-head"><span><span class="sd-dot"></span> <span id="modal-title"></span></span></h3>
+    <h3 class="sd-dialog-head"><span id="modal-title"></span></h3>
     <div class="sd-dialog-body">
         <p id="modal-message"></p>
         <pre id="modal-detail"></pre>
@@ -305,7 +305,7 @@
 <template id="group-template">
     <section class="group">
         <div class="section-head">
-            <h2><span class="sd-dot"></span> <span class="group-name"></span> <span class="count sd-count"></span></h2>
+            <h2><span class="group-name"></span> <span class="count sd-count"></span></h2>
         </div>
         <div class="columns">
             <button class="sort" data-sort="created" title="Created"><svg viewBox="0 0 24 24" class="icon"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button>
@@ -395,5 +395,6 @@
 <script type="module" src="stats.js"></script>
 <script type="module" src="activity.js"></script>
 <script type="module" src="management.js"></script>
+<script type="module" src="resources.js"></script>
 </body>
 </html>

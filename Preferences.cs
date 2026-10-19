@@ -9,7 +9,8 @@ public sealed record AlertPreferences(double CpuHigh = 50, double CpuRecovery = 
     double MemoryRecovery = 80, int Samples = 3, int CooldownSeconds = 60, bool Notifications = false, bool Muted = false);
 
 public sealed record Preferences(string Session = "", bool KeepRunning = false, bool StartAtLogin = false,
-    AlertPreferences? Alerts = null, IReadOnlyDictionary<string, AlertPreferences>? ContainerAlerts = null)
+    AlertPreferences? Alerts = null, IReadOnlyDictionary<string, AlertPreferences>? ContainerAlerts = null,
+    ResourceLimits? Limits = null, IReadOnlyDictionary<string, ResourceLimits>? ContainerLimits = null)
 {
     public static readonly string Root = Environment.GetEnvironmentVariable("WATCHER_DATA_FOLDER")
         ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Watcher");
@@ -18,6 +19,9 @@ public sealed record Preferences(string Session = "", bool KeepRunning = false, 
     private static readonly Lazy<Preferences> Initial = new(() => Load());
     public static Preferences Startup => Initial.Value;
     public AlertPreferences EffectiveAlerts => Alerts ?? new();
+
+    /// <summary>A container's own limits replace the defaults; an override with every limit off exempts it.</summary>
+    public ResourceLimits LimitsFor(string container) => ContainerLimits?.GetValueOrDefault(container) ?? Limits ?? new();
 
     public static Preferences Load(string? path = null)
     {
@@ -37,6 +41,8 @@ public sealed record Preferences(string Session = "", bool KeepRunning = false, 
         if (Session is null || Session.Length > 200 || Session.Any(char.IsControl)) throw new ArgumentException("Invalid session name.");
         ValidateAlerts(EffectiveAlerts);
         foreach (var rule in ContainerAlerts?.Values ?? []) ValidateAlerts(rule);
+        ResourceLimits.Validate(Limits ?? new());
+        foreach (var limits in ContainerLimits?.Values ?? []) ResourceLimits.Validate(limits);
         return this;
     }
 

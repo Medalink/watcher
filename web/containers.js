@@ -393,6 +393,7 @@ $('reap').addEventListener('click', () => {
 const removedPageSize = 10;
 const removals = {
     reap: { label: 'Reaped', tone: 'pending' },
+    limit: { label: 'Over a limit', tone: 'danger' },
     watcher: { label: 'Removed in Watcher', tone: 'neutral' },
     outside: { label: 'Removed outside Watcher', tone: 'neutral' },
 };

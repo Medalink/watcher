@@ -2,7 +2,7 @@ import { $, clock, day, on, registerPage, request } from './app.js';
 
 const groups = {
     lifecycle: ['appeared', 'disappeared', 'state', 'orphaned', 'port'],
-    alerts: ['cpu-high', 'cpu-normal', 'memory-high', 'memory-normal'],
+    alerts: ['cpu-high', 'cpu-normal', 'memory-high', 'memory-normal', 'limit'],
     actions: ['action'],
     monitor: ['monitor-started', 'monitor-stopped', 'wslc-offline', 'wslc-online'],
     runtime: ['runtime', 'runtime-gap'],
@@ -118,6 +118,7 @@ function tone(event) {
             return detail.ok ? 'cyan' : 'pink';
         case 'cpu-high':
         case 'memory-high':
+        case 'limit':
         case 'wslc-offline':
             return 'pink';
         case 'appeared':
