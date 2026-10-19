@@ -32,9 +32,71 @@ export function toast(
 /* Keyboard */
 export function hotkeys(
   map: Record<string, (event: KeyboardEvent) => void>,
-  options?: { target?: EventTarget },
+  options?: {
+    target?: EventTarget;
+    /** Milliseconds between sequence keys, such as "g t". Default 900. */
+    sequenceTimeout?: number;
+    /** Allow repeated single-key bindings. Default true. Sequences never repeat. */
+    repeat?: boolean;
+    enabled?: boolean | ((event: KeyboardEvent) => boolean);
+  },
 ): () => void;
 export function keyOf(event: KeyboardEvent): string;
+
+/* Countdowns */
+export interface CountdownState {
+  state: "running" | "paused" | "complete";
+  remainingMs: number;
+  running: boolean;
+}
+export interface CountdownMount {
+  /** Supply authoritative time. Zero or negative time completes the display. */
+  set(value: { remainingMs: number; running: boolean }): void;
+  /** Stop future updates. Later set() calls have no effect. */
+  dispose(): void;
+}
+/** Explicit mount, independent of init(). Progress uses the largest remaining
+ * time since mount or the last completion as its duration. Remount for a new task. */
+export function mountCountdown(root: HTMLElement): CountdownMount;
+
+/* Live feeds */
+export interface FeedState {
+  activeId: string | null;
+  /** Rows entirely above the viewport. */
+  aboveCount: number;
+  returnPending: boolean;
+}
+export interface FeedNavigation {
+  scroll?: boolean;
+  /** Smooth movement takes 180ms, or is immediate under reduced motion. */
+  behavior?: "auto" | "smooth";
+}
+export interface FeedMount {
+  select(id: string, options?: FeedNavigation): void;
+  /** Move in DOM order, clamped at either end. */
+  move(delta: number, options?: FeedNavigation): void;
+  /** Select the lowest or highest numeric data-order. */
+  oldest(options?: FeedNavigation): void;
+  newest(options?: FeedNavigation): void;
+  /** Bracket a synchronous DOM change with beforeUpdate() and afterUpdate(). */
+  beforeUpdate(): void;
+  afterUpdate(): void;
+  refresh(): void;
+  suspend(value?: boolean): void;
+  dispose(): void;
+}
+export function mountFeed(root: HTMLElement, options?: {
+  itemSelector?: string;
+  activeId?: string | null;
+  /** A row ID or marker element. No idle return without a target. */
+  returnTarget?: () => string | HTMLElement | null;
+  /** Default blocks return while a descendant has aria-expanded="true". */
+  canReturn?: () => boolean;
+  idleMs?: number;
+  returnDistance?: number;
+  /** Target position as a fraction of viewport height. Default 0.45. */
+  align?: number;
+}): FeedMount;
 
 /* Theme */
 export const THEMES: readonly Theme[];
@@ -116,7 +178,14 @@ export function drawSpark(element: HTMLElement): void;
 
 /* Events the library dispatches */
 declare global {
+  interface HTMLElementEventMap {
+    "sd:countdown": CustomEvent<CountdownState>;
+    "sd:feed": CustomEvent<FeedState>;
+  }
   interface DocumentEventMap {
+    "sd:countdown": CustomEvent<CountdownState>;
+
+    "sd:feed": CustomEvent<FeedState>;
     "sd:theme": CustomEvent<{ theme: Theme }>;
     "sd:shell": CustomEvent<{ sidebar: "pinned" | "collapsed"; aside: "open" | "closed"; drawer: boolean; section?: string }>;
     "sd:window": CustomEvent<{ action: "minimize" | "maximize" | "close" }>;

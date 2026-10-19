@@ -42,9 +42,14 @@ export function onControlsClick(event) {
     const spec = copy.dataset.sdCopy;
     const source = /^[#.[]/.test(spec) ? document.querySelector(spec) : null;
     const text = source ? source.textContent : spec;
-    navigator.clipboard?.writeText(text).then(
+    const unavailable = () => toast("Copy unavailable. Select the line instead.", { tone: "danger" });
+    if (!navigator.clipboard?.writeText) {
+      unavailable();
+      return;
+    }
+    navigator.clipboard.writeText(text).then(
       () => toast("Copied", { tone: "success", timeout: 1400 }),
-      () => toast("Copy failed", { tone: "danger" }),
+      unavailable,
     );
   }
 }
