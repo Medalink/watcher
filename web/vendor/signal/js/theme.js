@@ -1,19 +1,24 @@
 /**
- * Themes: ink (default), graphite, light, auto.
+ * Themes: ink (default), graphite, paper, auto. "light" is the older name for
+ * paper and is still accepted everywhere.
  *
- *   setTheme("light")           sets <html data-theme> and remembers it
- *   <button data-sd-theme="light">   sets a theme on click
+ *   setTheme("paper")           sets <html data-theme> and remembers it
+ *   <button data-sd-theme="paper">   sets a theme on click
  *   <button data-sd-theme-cycle>     steps through the themes
  *   Shift+T                          steps through them too (init() binds it)
  */
-export const THEMES = ["ink", "graphite", "light", "auto"];
+export const THEMES = ["ink", "graphite", "paper", "auto"];
+// Older names that still work.
+const ALIASES = { light: "paper" };
+const canonical = (name) => ALIASES[name] ?? name;
 const KEY = "sd-theme";
 
 export function getTheme() {
-  return document.documentElement.dataset.theme || "ink";
+  return canonical(document.documentElement.dataset.theme || "ink");
 }
 
 export function setTheme(name, { persist = true } = {}) {
+  name = canonical(name);
   if (!THEMES.includes(name)) throw new Error(`Unknown theme "${name}". Use one of: ${THEMES.join(", ")}`);
   document.documentElement.dataset.theme = name;
   if (persist) {
@@ -24,7 +29,7 @@ export function setTheme(name, { persist = true } = {}) {
     }
   }
   for (const el of document.querySelectorAll("[data-sd-theme]")) {
-    el.setAttribute("aria-pressed", String(el.dataset.sdTheme === name));
+    el.setAttribute("aria-pressed", String(canonical(el.dataset.sdTheme) === name));
   }
   document.dispatchEvent(new CustomEvent("sd:theme", { detail: { theme: name } }));
 }
@@ -37,10 +42,11 @@ export function restoreTheme(fallback = "ink") {
   } catch {
     /* storage blocked */
   }
+  saved = canonical(saved);
   setTheme(THEMES.includes(saved) ? saved : fallback, { persist: false });
 }
 
-/** Step to the next theme (ink → graphite → light → auto → ink). */
+/** Step to the next theme (ink → graphite → paper → auto → ink). */
 export function cycleTheme() {
   setTheme(THEMES[(THEMES.indexOf(getTheme()) + 1) % THEMES.length]);
 }

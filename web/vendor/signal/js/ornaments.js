@@ -48,8 +48,11 @@ function seeded(seed) {
  * sparkle: the share of squares that brighten now and then (0 = still).
  * Each one rests most of a slow 6–14s cycle and lifts briefly, at its own
  * offset, so the ornament glints without drawing the eye.
+ *
+ * With a `glints` array the sparkling squares are pushed there (for CSS
+ * animation on the compositor) instead of animating inside the SVG.
  */
-export function ornamentShapes({ size = DEFAULT_SIZE, width = size, edge = false, center = false, color = "#fff", seed = 7, strength = 1, style = "blocks", sparkle = 0 } = {}) {
+export function ornamentShapes({ size = DEFAULT_SIZE, width = size, edge = false, center = false, color = "#fff", seed = 7, strength = 1, style = "blocks", sparkle = 0, glints = null } = {}) {
   const preset = ORNAMENT_STYLES[style] ?? ORNAMENT_STYLES.blocks;
   const { cell, falloff, merge, mix } = preset;
   const metric = edge ? "edge" : center ? "center" : preset.metric;
@@ -93,28 +96,29 @@ export function ornamentShapes({ size = DEFAULT_SIZE, width = size, edge = false
 
       const w = span * cell - gap;
       const at = `x="${x + gap / 2}" y="${y + gap / 2}" width="${w}" height="${w}"`;
+      const kind = pick < filled ? "fill" : pick < outline ? "line" : pick < dotted ? "dots" : "dot";
+      const dot = kind === "dot" ? Math.max(2, Math.round(cell / 4 + random() * 2)) : 0;
       // A twinkle: rest at the base alpha, lift to a peak, settle back.
-      const glint = (attr) => {
-        if (!(sparkle > 0) || random() >= sparkle) return "";
-        const peak = Math.min(1, alpha * 2.6 + 0.12 * strength).toFixed(3);
-        const dur = (6 + random() * 8).toFixed(1);
-        const begin = (random() * 14).toFixed(1);
-        return `<animate attributeName="${attr}" values="${alpha};${alpha};${peak};${alpha}" keyTimes="0;0.72;0.84;1" dur="${dur}s" begin="${begin}s" repeatCount="indefinite"/>`;
-      };
-      const rect = (attrs, attr) => {
-        const g = glint(attr);
-        return g ? `<rect ${attrs}>${g}</rect>` : `<rect ${attrs}/>`;
-      };
-      if (pick < filled) {
-        shapes.push(rect(`${at} fill="${color}" fill-opacity="${alpha}"`, "fill-opacity"));
-      } else if (pick < outline) {
-        shapes.push(rect(`${at} fill="none" stroke="${color}" stroke-opacity="${alpha}"`, "stroke-opacity"));
-      } else if (pick < dotted) {
-        shapes.push(rect(`${at} fill="none" stroke="${color}" stroke-opacity="${alpha}" stroke-dasharray="1 2"`, "stroke-opacity"));
-      } else {
-        const dot = Math.max(2, Math.round(cell / 4 + random() * 2));
+      let glint = "";
+      if (sparkle > 0 && random() < sparkle) {
+        const peak = Math.min(1, alpha * 2.6 + 0.12 * strength);
+        const dur = 6 + random() * 8;
+        const begin = random() * 14;
+        if (glints) {
+          const o = kind === "dot" ? (cell - dot) / 2 : gap / 2;
+          glints.push({ x: x + o, y: y + o, w: kind === "dot" ? dot : w, kind, lift: +(peak - alpha).toFixed(3), dur: +dur.toFixed(1), begin: +begin.toFixed(1) });
+        } else {
+          const attr = kind === "line" || kind === "dots" ? "stroke-opacity" : "fill-opacity";
+          glint = `<animate attributeName="${attr}" values="${alpha};${alpha};${peak.toFixed(3)};${alpha}" keyTimes="0;0.72;0.84;1" dur="${dur.toFixed(1)}s" begin="${begin.toFixed(1)}s" repeatCount="indefinite"/>`;
+        }
+      }
+      const rect = (attrs) => (glint ? `<rect ${attrs}>${glint}</rect>` : `<rect ${attrs}/>`);
+      if (kind === "fill") shapes.push(rect(`${at} fill="${color}" fill-opacity="${alpha}"`));
+      else if (kind === "line") shapes.push(rect(`${at} fill="none" stroke="${color}" stroke-opacity="${alpha}"`));
+      else if (kind === "dots") shapes.push(rect(`${at} fill="none" stroke="${color}" stroke-opacity="${alpha}" stroke-dasharray="1 2"`));
+      else {
         const o = (cell - dot) / 2;
-        shapes.push(rect(`x="${x + o}" y="${y + o}" width="${dot}" height="${dot}" fill="${color}" fill-opacity="${alpha}"`, "fill-opacity"));
+        shapes.push(rect(`x="${x + o}" y="${y + o}" width="${dot}" height="${dot}" fill="${color}" fill-opacity="${alpha}"`));
       }
     }
   }
@@ -202,6 +206,11 @@ export function paintOrnaments(el) {
   const images = [];
   const positions = [];
   const sizes = [];
+  // Sparkling squares, placed in CSS px from the corner they grow from.
+  const glints = [];
+  const collect = (corner, list, area) => {
+    for (const g of list) glints.push({ ...g, corner, area });
+  };
 
   // The border glow goes on top; the element's own border turns transparent.
   if ("sdEdges" in el.dataset) {
@@ -218,11 +227,14 @@ export function paintOrnaments(el) {
   corners.forEach((corner, i) => {
     const edge = EDGES.has(corner);
     if (corner === "center") {
-      images.push(ornamentURL(corner, { size: centerSize, width: centerSize, color, strength: strength * 0.7, seed: 31 + centerSize, style: "dust", sparkle: sparkle ? sparkle * 1.5 : 0 }));
+      const list = [];
+      images.push(ornamentURL(corner, { size: centerSize, width: centerSize, color, strength: strength * 0.7, seed: 31 + centerSize, style: "dust", sparkle: sparkle ? sparkle * 1.5 : 0, glints: list }));
+      collect(corner, list, centerSize);
       positions.push(POSITION.center);
       sizes.push(`${centerSize}px ${centerSize}px`);
       return;
     }
+    const list = [];
     images.push(
       ornamentURL(corner, {
         size,
@@ -232,9 +244,11 @@ export function paintOrnaments(el) {
         strength: edge ? strength * 0.5 : styles[i % styles.length] === "blocks" ? strength * 0.5 : strength,
         seed: 11 + i * 97 + (edge ? width : 0),
         sparkle,
+        glints: list,
         style: edge ? "dust" : styles[i % styles.length],
       }),
     );
+    collect(corner, list, size);
     positions.push(POSITION[corner]);
     sizes.push(edge ? `${width}px ${size}px` : `${size}px ${size}px`);
   });
@@ -244,12 +258,112 @@ export function paintOrnaments(el) {
   el.style.backgroundSize = sizes.join(", ");
   el.style.backgroundRepeat = "no-repeat";
   el.style.backgroundOrigin = "border-box";
+  layGlints(el, glints, color, style, width);
 }
+
+/**
+ * The sparkle runs as CSS opacity animations on small squares in a layer
+ * under the content, so the compositor animates it and the page itself does
+ * no work per frame. In a scroller the layer is a sticky first child, so it
+ * stays put like the background does.
+ */
+function layGlints(el, glints, color, style, edgeWidth) {
+  let layer = el.querySelector(":scope > .sd-glints");
+  if (!glints.length) {
+    layer?.remove();
+    return;
+  }
+  const scroller = /(auto|scroll)/.test(style.overflowY);
+  const px = (v) => parseFloat(v) || 0;
+  const bt = px(style.borderTopWidth);
+  const bl = px(style.borderLeftWidth);
+  const br = px(style.borderRightWidth);
+  const bb = px(style.borderBottomWidth);
+  const W = el.offsetWidth;
+  const H = el.offsetHeight;
+  if (!layer) {
+    layer = document.createElement("span");
+    layer.className = "sd-glints";
+    layer.setAttribute("aria-hidden", "true");
+    if (scroller) el.prepend(layer);
+    else el.append(layer);
+  }
+  if (style.position === "static") el.style.position = "relative";
+  el.style.isolation = "isolate";
+  layer.style.color = color;
+  let box = layer;
+  if (scroller) {
+    // Pinned at the top of the visible area; the box inside covers it.
+    layer.dataset.sticky = "";
+    layer.style.top = `${px(style.paddingTop)}px`;
+    box = layer.firstElementChild || layer.appendChild(document.createElement("span"));
+    box.className = "sd-glints-box";
+    Object.assign(box.style, { top: `${-px(style.paddingTop)}px`, left: `${-px(style.paddingLeft)}px`, width: `${W - bl - br}px`, height: `${H - bt - bb}px` });
+  }
+  // Each ornament's glints split into three groups, each one SVG layer with
+  // its own slow rhythm. A few composited layers instead of one element per
+  // square keeps the per-frame style work near zero when the page is busy.
+  const groups = new Map();
+  glints.forEach((g, i) => {
+    const key = `${g.corner}|${i % GLINT_RHYTHMS.length}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(g);
+  });
+  let html = "";
+  for (const [key, list] of groups) {
+    const [corner, n] = key.split("|");
+    const edge = EDGES.has(corner);
+    const w = edge ? edgeWidth : list[0].area;
+    const h = list[0].area;
+    const flipX = corner === "tr" || corner === "br";
+    const flipY = corner === "bl" || corner === "br" || corner === "bottom";
+    const transform = flipX || flipY ? ` transform="translate(${flipX ? w : 0} ${flipY ? h : 0}) scale(${flipX ? -1 : 1} ${flipY ? -1 : 1})"` : "";
+    const rects = list
+      .map((g) =>
+        g.kind === "line" || g.kind === "dots"
+          ? `<rect x="${g.x}" y="${g.y}" width="${g.w}" height="${g.w}" fill="none" stroke="${color}" stroke-opacity="${g.lift}"${g.kind === "dots" ? ' stroke-dasharray="1 2"' : ""}/>`
+          : `<rect x="${g.x}" y="${g.y}" width="${g.w}" height="${g.w}" fill="${color}" fill-opacity="${g.lift}"/>`,
+      )
+      .join("");
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" shape-rendering="crispEdges"><g${transform}>${rects}</g></svg>`;
+    // Placed like the ornament: on the border box, so outside the border by its width.
+    const place =
+      corner === "center"
+        ? `left:${(W - w) / 2 - bl}px;top:${(H - h) / 2 - bt}px`
+        : `${flipX ? `right:${-br}px` : `left:${-bl}px`};${flipY ? `bottom:${-bb}px` : `top:${-bt}px`}`;
+    const rhythm = GLINT_RHYTHMS[n];
+    const delay = (list[0].begin % rhythm).toFixed(1);
+    html += `<i style="${place};width:${w}px;height:${h}px;background-image:url(&quot;data:image/svg+xml,${encodeURIComponent(svg)}&quot;);animation-duration:${rhythm}s;animation-delay:-${delay}s"></i>`;
+  }
+  box.innerHTML = html;
+}
+
+// Seconds per glint cycle for the three groups: unrelated lengths, so the
+// groups drift apart and the twinkles never line up into a pattern.
+const GLINT_RHYTHMS = [7.3, 9.7, 12.1];
 
 const SELECTOR = "[data-sd-ornaments], [data-sd-edges], .sd-empty";
 
+// Painting reads an element's size, which would force layout of content the
+// browser is skipping (content-visibility, display: none). Paint those when
+// they come into view instead.
+const waiting = new IntersectionObserver((entries) => {
+  for (const e of entries) {
+    if (!e.isIntersecting) continue;
+    waiting.unobserve(e.target);
+    paintOrnaments(e.target);
+  }
+});
+
+function rendered(el) {
+  return el.checkVisibility ? el.checkVisibility({ contentVisibilityAuto: true }) : true;
+}
+
 function paintAll(root = document) {
-  for (const el of root.querySelectorAll(SELECTOR)) paintOrnaments(el);
+  for (const el of root.querySelectorAll(SELECTOR)) {
+    if (rendered(el)) paintOrnaments(el);
+    else waiting.observe(el);
+  }
 }
 
 let listening = false;
@@ -257,7 +371,9 @@ let listening = false;
 // Edge ornaments span the element's width, so repaint when it changes.
 const resized = new ResizeObserver((entries) => {
   for (const { target } of entries) {
-    if (target.matches(".sd-empty") || "sdEdges" in target.dataset || /(top|bottom)/.test(target.dataset.sdOrnaments || "")) paintOrnaments(target);
+    if (!rendered(target)) continue;
+    const scroller = target.querySelector(":scope > .sd-glints[data-sticky]");
+    if (scroller || target.matches(".sd-empty") || "sdEdges" in target.dataset || /(top|bottom|center)/.test(target.dataset.sdOrnaments || "")) paintOrnaments(target);
   }
 });
 

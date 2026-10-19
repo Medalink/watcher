@@ -559,7 +559,8 @@ export function createChart(canvas, options = {}) {
     const tips = [];
     for (const i of plugins.lineIndexes(chart, { visual: true })) {
       const ds = chart.data.datasets[i];
-      if (ds.yAxisID !== "y" || ds._ghost) continue;
+      // Packets ride bandwidth lines only (the throughput is what they show).
+      if (ds.yAxisID !== "y" || ds._ghost || String(ds._unit).trim() !== "Mbps") continue;
       const meta = chart.getDatasetMeta(i).data;
       const samples = [];
       let segment = 0;

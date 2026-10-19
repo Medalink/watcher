@@ -19,6 +19,7 @@ import { onRainClick, initRain } from "./rain.js";
 import { initFps } from "./fps.js";
 import { initOrnaments } from "./ornaments.js";
 import { onScrollActivity, setScrollbars } from "./scrollbars.js";
+import { initScrollTabs } from "./scrolltabs.js";
 import { onWindowClick, onWindowDblClick, initWindow } from "./window.js";
 import { onListboxInput, onListboxKeydown, onListboxClick, initPalettes } from "./listbox.js";
 import { onInputsKeydown, onInputsClick, onInputsInput, onShortcutsKey, initInputs } from "./inputs.js";
@@ -59,6 +60,7 @@ export function init({ theme = true, scrollbars = "auto", themeKey = "shift+t" }
   initPalettes();
   initInputs();
   initWindow();
+  initScrollTabs();
   if (started) return;
   started = true;
 

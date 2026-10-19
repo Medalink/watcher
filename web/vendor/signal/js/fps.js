@@ -3,7 +3,9 @@
  *
  *   <span class="sd-fps" data-sd-fps><b>--</b> fps</span>
  *
- * Counts requestAnimationFrame callbacks over a 2s window. The value goes in
+ * Counts requestAnimationFrame callbacks over a 1s sample, then rests 3s
+ * before the next one: watching every frame keeps the page awake and costs
+ * more than it measures. The value goes in
  * the <b>, and data-tone on the element colors it: success at 58 fps and up
  * (a 60 Hz screen reads 59 to 60), pending from 20, danger below. One loop
  * serves every counter on the page and stops when none are left.
@@ -11,9 +13,11 @@
  *   import { fps } from "signal-design/js";
  *   const off = fps.subscribe((value) => console.log(value));
  */
-const WINDOW_MS = 2000;
+const WINDOW_MS = 1000;
+const REST_MS = 3000;
 const listeners = new Set();
 let rafId = null;
+let restId = null;
 let lastTime = 0;
 let frameCount = 0;
 let current = 0;
@@ -41,13 +45,20 @@ function measure(now) {
     lastTime = now;
     const shown = paint(current);
     for (const fn of listeners) fn(current);
-    if (!shown && !listeners.size) return stop();
+    rafId = null;
+    if (!shown && !listeners.size) return;
+    // Rest, then take the next sample.
+    restId = setTimeout(() => {
+      restId = null;
+      start();
+    }, REST_MS);
+    return;
   }
   rafId = requestAnimationFrame(measure);
 }
 
 function start() {
-  if (rafId !== null) return;
+  if (rafId !== null || restId !== null || document.hidden) return;
   lastTime = performance.now();
   frameCount = 0;
   rafId = requestAnimationFrame(measure);
@@ -55,7 +66,9 @@ function start() {
 
 function stop() {
   if (rafId !== null) cancelAnimationFrame(rafId);
+  clearTimeout(restId);
   rafId = null;
+  restId = null;
 }
 
 export const fps = {

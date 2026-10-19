@@ -1,6 +1,8 @@
 // Types for signal-design/js.
 
-export type Theme = "ink" | "graphite" | "light" | "auto";
+export type Theme = "ink" | "graphite" | "paper" | "auto";
+/** "light" is the older name for "paper" and is still accepted. */
+export type ThemeName = Theme | "light";
 export type Tone = "accent" | "success" | "danger" | "warning" | "pending" | "extra" | "neutral";
 
 /** Wire up every behavior (delegated, so later markup works too). Call once. */
@@ -36,10 +38,10 @@ export function keyOf(event: KeyboardEvent): string;
 
 /* Theme */
 export const THEMES: readonly Theme[];
-export function setTheme(name: Theme, options?: { persist?: boolean }): void;
+export function setTheme(name: ThemeName, options?: { persist?: boolean }): void;
 export function getTheme(): Theme;
-export function restoreTheme(fallback?: Theme): void;
-/** Step to the next theme: ink → graphite → light → auto. */
+export function restoreTheme(fallback?: ThemeName): void;
+/** Step to the next theme: ink → graphite → paper → auto. */
 export function cycleTheme(): void;
 
 /* Positioning */

@@ -539,13 +539,13 @@ function confirm({ title, message, detail = '', action = null }) {
     $('modal-confirm').hidden = action === null;
     $('modal-confirm').textContent = action ?? '';
     $('modal-cancel').textContent = action === null ? 'Close' : 'Cancel';
-    $('modal').hidden = false;
+    $('modal').showModal();
     (action === null ? $('modal-cancel') : $('modal-confirm')).focus();
 
     return new Promise((resolve) => {
         settle = (ok) => {
             settle = null;
-            $('modal').hidden = true;
+            $('modal').close();
             resolve(ok);
         };
     });
@@ -553,8 +553,10 @@ function confirm({ title, message, detail = '', action = null }) {
 
 $('modal-cancel').addEventListener('click', () => settle?.(false));
 $('modal-confirm').addEventListener('click', () => settle?.(true));
+// Clicks on the ::backdrop are delivered to the dialog element itself.
 $('modal').addEventListener('mousedown', (event) => event.target === $('modal') && settle?.(false));
-document.addEventListener('keydown', (event) => event.key === 'Escape' && settle?.(false));
+// Escape closes a native dialog on its own; settle the promise via the close event.
+$('modal').addEventListener('close', () => settle?.(false));
 
 // ---------- Host messages ----------
 

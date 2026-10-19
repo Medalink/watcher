@@ -12,7 +12,26 @@ const lastScroll = new WeakMap();
 
 // Scroll events fire every frame, so this touches the DOM only when the state
 // changes: mark on the first event, unmark once 2s pass with no new one.
+// While anything scrolls, <html> carries data-sd-scrolling-page so ornament
+// sparkle and other idle motion can pause; it clears 300ms after the last
+// scroll event.
+const PAGE_IDLE_MS = 300;
+let pageScrollAt = 0;
+function markPage() {
+  pageScrollAt = performance.now();
+  const root = document.documentElement;
+  if (root.hasAttribute("data-sd-scrolling-page")) return;
+  root.setAttribute("data-sd-scrolling-page", "");
+  const check = () => {
+    const idle = performance.now() - pageScrollAt;
+    if (idle >= PAGE_IDLE_MS) root.removeAttribute("data-sd-scrolling-page");
+    else setTimeout(check, PAGE_IDLE_MS - idle);
+  };
+  setTimeout(check, PAGE_IDLE_MS);
+}
+
 export function onScrollActivity(event) {
+  markPage();
   const el = event.target === document ? document.documentElement : event.target;
   if (!(el instanceof Element)) return;
   lastScroll.set(el, performance.now());
