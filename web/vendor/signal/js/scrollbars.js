@@ -8,14 +8,22 @@
  * scrolls it carries data-sd-scrolling.
  */
 const IDLE_MS = 2000;
-const timers = new WeakMap();
+const lastScroll = new WeakMap();
 
+// Scroll events fire every frame, so this touches the DOM only when the state
+// changes: mark on the first event, unmark once 2s pass with no new one.
 export function onScrollActivity(event) {
   const el = event.target === document ? document.documentElement : event.target;
   if (!(el instanceof Element)) return;
+  lastScroll.set(el, performance.now());
+  if (el.hasAttribute("data-sd-scrolling")) return;
   el.setAttribute("data-sd-scrolling", "");
-  clearTimeout(timers.get(el));
-  timers.set(el, setTimeout(() => el.removeAttribute("data-sd-scrolling"), IDLE_MS));
+  const check = () => {
+    const idle = performance.now() - lastScroll.get(el);
+    if (idle >= IDLE_MS) el.removeAttribute("data-sd-scrolling");
+    else setTimeout(check, IDLE_MS - idle);
+  };
+  setTimeout(check, IDLE_MS);
 }
 
 export function setScrollbars(mode = "auto") {

@@ -9,6 +9,8 @@ export function init(options?: {
   theme?: boolean;
   /** "auto" hides scrollbars 2s after scrolling stops. Default "auto". */
   scrollbars?: "auto" | "always";
+  /** Key combo that steps the theme; false turns it off. Default "shift+t". */
+  themeKey?: string | false;
 }): void;
 
 /* Dialogs */
@@ -37,6 +39,8 @@ export const THEMES: readonly Theme[];
 export function setTheme(name: Theme, options?: { persist?: boolean }): void;
 export function getTheme(): Theme;
 export function restoreTheme(fallback?: Theme): void;
+/** Step to the next theme: ink → graphite → light → auto. */
+export function cycleTheme(): void;
 
 /* Positioning */
 export function place(
@@ -58,6 +62,7 @@ export interface RainMount {
   readonly playing: boolean;
   play(): void;
   pause(): void;
+  update(options: Record<string, unknown>): void;
   destroy(): void;
 }
 export function mountRain(canvas: HTMLCanvasElement, options?: { playing?: boolean; style?: "glyphs" | "squares" }): RainMount;
@@ -77,8 +82,8 @@ export const fps: {
 };
 
 /* Ornaments */
-export const CORNER_STYLES: Record<"blocks" | "dust", { cell: number; metric: string; falloff: number; merge: number; mix: number[] }>;
-export function cornerShapes(options?: {
+export const ORNAMENT_STYLES: Record<"blocks" | "dust", { cell: number; metric: string; falloff: number; merge: number; mix: number[] }>;
+export function ornamentShapes(options?: {
   size?: number;
   width?: number;
   edge?: boolean;
@@ -87,7 +92,7 @@ export function cornerShapes(options?: {
   strength?: number;
   style?: "blocks" | "dust";
 }): string;
-export function paintCorners(element: HTMLElement): void;
+export function paintOrnaments(element: HTMLElement): void;
 
 /* Scrollbars */
 export function setScrollbars(mode?: "auto" | "always"): void;

@@ -157,7 +157,13 @@ export function mountRain(canvas, { playing = false, style = canvas.dataset.sdRa
       if (JSON.stringify(holes) !== JSON.stringify(state.holes)) update({ holes });
     });
   }
-  const onVisibility = () => update({ visible: !document.hidden });
+  // Draw only while the tab is shown and the canvas is on screen.
+  let onScreen = true;
+  const onVisibility = () => update({ visible: !document.hidden && onScreen });
+  const intersection = new IntersectionObserver((entries) => {
+    onScreen = entries.at(-1).isIntersecting;
+    onVisibility();
+  });
   // Theme changes swap variables; read them after styles apply.
   const onTheme = () => requestAnimationFrame(() => update(themeColors(canvas)));
   const onMotion = () => update({ playing: wanted && !reduced.matches });
@@ -165,6 +171,7 @@ export function mountRain(canvas, { playing = false, style = canvas.dataset.sdRa
 
   start();
   resizeObserver.observe(canvas);
+  intersection.observe(canvas);
   const skip = canvas.dataset.sdRainSkip ?? (canvas.closest(".sd-shell") ? SHELL_SKIP : "");
   if (skip) for (const el of (canvas.closest(".sd-shell") ?? document).querySelectorAll(skip)) resizeObserver.observe(el);
   document.addEventListener("sd:shell", remeasure);
@@ -194,6 +201,7 @@ export function mountRain(canvas, { playing = false, style = canvas.dataset.sdRa
       worker?.terminate();
       renderer?.destroy();
       resizeObserver.disconnect();
+      intersection.disconnect();
       document.removeEventListener("sd:shell", remeasure);
       document.removeEventListener("visibilitychange", onVisibility);
       document.removeEventListener("sd:theme", onTheme);

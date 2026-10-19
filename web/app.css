@@ -21,9 +21,6 @@
 
 .shell { display: grid; grid-template-columns: 6rem minmax(0, 1fr); height: 100vh; }
 
-/* The kit's rail and titlebar carry named grid-areas for .sd-shell; outside it they place normally. */
-.shell .sd-rail, .main .sd-titlebar { grid-area: auto; }
-
 /* min-height: 0 lets the page scroll inside the window instead of growing past it. */
 .main { display: grid; grid-template-rows: 2.25rem minmax(0, 1fr); min-width: 0; min-height: 0; height: 100vh; }
 

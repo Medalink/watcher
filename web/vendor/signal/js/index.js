@@ -11,13 +11,13 @@ import { onPopoverClick, onPopoverBeforeToggle, onPopoverToggle, onMenuKeydown, 
 import { onTabClick, onTabKeydown, initTabs } from "./tabs.js";
 import { onToastClick } from "./toast.js";
 import { onTipOver, onTipOut, onTipKeydown, hideTooltip } from "./tooltip.js";
-import { onKeyAttr } from "./hotkeys.js";
+import { onKeyAttr, isKey } from "./hotkeys.js";
 import { onControlsClick, onDrag } from "./controls.js";
-import { onThemeClick, restoreTheme } from "./theme.js";
+import { onThemeClick, restoreTheme, cycleTheme } from "./theme.js";
 import { onShellClick, onShellKeydown, initShell } from "./shell.js";
 import { onRainClick, initRain } from "./rain.js";
 import { initFps } from "./fps.js";
-import { initCorners } from "./corners.js";
+import { initOrnaments } from "./ornaments.js";
 import { onScrollActivity, setScrollbars } from "./scrollbars.js";
 import { onWindowClick, onWindowDblClick, initWindow } from "./window.js";
 import { onListboxInput, onListboxKeydown, onListboxClick, initPalettes } from "./listbox.js";
@@ -29,12 +29,12 @@ export { selectTab } from "./tabs.js";
 export { toast } from "./toast.js";
 export { hotkeys, keyOf } from "./hotkeys.js";
 export { setExpanded } from "./controls.js";
-export { setTheme, getTheme, restoreTheme, THEMES } from "./theme.js";
+export { setTheme, getTheme, restoreTheme, cycleTheme, THEMES } from "./theme.js";
 export { place } from "./position.js";
 export { setSidebar, setAside, setDrawer, selectSection } from "./shell.js";
 export { rain, mountRain } from "./rain.js";
 export { fps } from "./fps.js";
-export { paintCorners, cornerShapes, CORNER_STYLES } from "./corners.js";
+export { paintOrnaments, ornamentShapes, ORNAMENT_STYLES } from "./ornaments.js";
 export { setScrollbars } from "./scrollbars.js";
 export { setOptions, filterList } from "./listbox.js";
 export { drawSpark } from "./inputs.js";
@@ -47,14 +47,14 @@ let started = false;
  *   theme: restore the saved theme (default true)
  *   scrollbars: "auto" hides them 2s after scrolling stops (default)
  */
-export function init({ theme = true, scrollbars = "auto" } = {}) {
+export function init({ theme = true, scrollbars = "auto", themeKey = "shift+t" } = {}) {
   if (theme) restoreTheme(document.documentElement.dataset.theme || "ink");
   setScrollbars(scrollbars);
   initTabs();
   initShell();
   initRain();
   initFps();
-  initCorners();
+  initOrnaments();
   initConversation();
   initPalettes();
   initInputs();
@@ -89,6 +89,11 @@ export function init({ theme = true, scrollbars = "auto" } = {}) {
     onMenuKeydown(event);
     onTipKeydown(event);
     onKeyAttr(event);
+    // Shift+T steps the theme on every page, unless a [data-sd-key] took it.
+    if (themeKey && isKey(event, themeKey)) {
+      event.preventDefault();
+      cycleTheme();
+    }
   });
   // toggle does not bubble; capture catches every popover.
   document.addEventListener("beforetoggle", onPopoverBeforeToggle, true);

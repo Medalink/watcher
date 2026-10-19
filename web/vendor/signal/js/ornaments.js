@@ -1,11 +1,11 @@
 /**
- * Corner ornaments: a field of small squares in two opposite corners of a
+ * Ornaments: a field of small squares in two opposite corners of a
  * box, dense and strong at the corner and thinning out as it spreads.
  *
- *   <div class="sd-shell-content" data-sd-corners>…</div>          bottom right (default)
- *   <div data-sd-corners="tl br">…</div>                          two corners: blocks + dust
- *   <div data-sd-corners data-sd-corners-size="420">…</div>       reach in px (default 340)
- *   <nav data-sd-corners="bottom" data-sd-corners-size="240">     full width, rising from the bottom
+ *   <div class="sd-shell-content" data-sd-ornaments>…</div>          bottom right (default)
+ *   <div data-sd-ornaments="tl br">…</div>                          two corners: blocks + dust
+ *   <div data-sd-ornaments data-sd-ornaments-size="420">…</div>       reach in px (default 340)
+ *   <nav data-sd-ornaments="bottom" data-sd-ornaments-size="240">     full width, rising from the bottom
  *   <div data-sd-edges>…</div>   border bright at the corners, faint along the sides, sharp at each center
  *
  * The first corner gets "blocks" (large squares, mostly outlines and dotted
@@ -22,7 +22,7 @@ const DEFAULT_SIZE = 340;
 
 // Each style: grid step, how the reach is measured, merge chance near the
 // corner, and the mix of square kinds (filled, outline, dotted, dot).
-export const CORNER_STYLES = {
+export const ORNAMENT_STYLES = {
   blocks: { cell: 12, metric: "diagonal", falloff: 1.15, merge: 0.18, mix: [0.18, 0.42, 0.3, 0.1] },
   dust: { cell: 8, metric: "radial", falloff: 1.6, merge: 0.05, mix: [0.42, 0.12, 0.12, 0.34] },
 };
@@ -44,10 +44,15 @@ function seeded(seed) {
  * transform for other corners. edge: true spreads from the whole top edge
  * (full width) instead of from the corner point.
  */
-export function cornerShapes({ size = DEFAULT_SIZE, width = size, edge = false, color = "#fff", seed = 7, strength = 1, style = "blocks" } = {}) {
-  const preset = CORNER_STYLES[style] ?? CORNER_STYLES.blocks;
+/**
+ * sparkle: the share of squares that brighten now and then (0 = still).
+ * Each one rests most of a slow 6–14s cycle and lifts briefly, at its own
+ * offset, so the ornament glints without drawing the eye.
+ */
+export function ornamentShapes({ size = DEFAULT_SIZE, width = size, edge = false, center = false, color = "#fff", seed = 7, strength = 1, style = "blocks", sparkle = 0 } = {}) {
+  const preset = ORNAMENT_STYLES[style] ?? ORNAMENT_STYLES.blocks;
   const { cell, falloff, merge, mix } = preset;
-  const metric = edge ? "edge" : preset.metric;
+  const metric = edge ? "edge" : center ? "center" : preset.metric;
   const random = seeded(seed);
   const cells = Math.floor(size / cell);
   const cols = Math.ceil(width / cell);
@@ -64,6 +69,7 @@ export function cornerShapes({ size = DEFAULT_SIZE, width = size, edge = false, 
       // 0 at the corner (or edge), 1 at the reach.
       const d =
         metric === "edge" ? (row + 0.5) / cells
+        : metric === "center" ? Math.hypot(col + 0.5 - cells / 2, row + 0.5 - cells / 2) / (cells / 2)
         : metric === "diagonal" ? (col + row + 1) / cells
         : Math.hypot(col + 0.5, row + 0.5) / cells;
       if (d >= 1) continue;
@@ -87,33 +93,46 @@ export function cornerShapes({ size = DEFAULT_SIZE, width = size, edge = false, 
 
       const w = span * cell - gap;
       const at = `x="${x + gap / 2}" y="${y + gap / 2}" width="${w}" height="${w}"`;
+      // A twinkle: rest at the base alpha, lift to a peak, settle back.
+      const glint = (attr) => {
+        if (!(sparkle > 0) || random() >= sparkle) return "";
+        const peak = Math.min(1, alpha * 2.6 + 0.12 * strength).toFixed(3);
+        const dur = (6 + random() * 8).toFixed(1);
+        const begin = (random() * 14).toFixed(1);
+        return `<animate attributeName="${attr}" values="${alpha};${alpha};${peak};${alpha}" keyTimes="0;0.72;0.84;1" dur="${dur}s" begin="${begin}s" repeatCount="indefinite"/>`;
+      };
+      const rect = (attrs, attr) => {
+        const g = glint(attr);
+        return g ? `<rect ${attrs}>${g}</rect>` : `<rect ${attrs}/>`;
+      };
       if (pick < filled) {
-        shapes.push(`<rect ${at} fill="${color}" fill-opacity="${alpha}"/>`);
+        shapes.push(rect(`${at} fill="${color}" fill-opacity="${alpha}"`, "fill-opacity"));
       } else if (pick < outline) {
-        shapes.push(`<rect ${at} fill="none" stroke="${color}" stroke-opacity="${alpha}"/>`);
+        shapes.push(rect(`${at} fill="none" stroke="${color}" stroke-opacity="${alpha}"`, "stroke-opacity"));
       } else if (pick < dotted) {
-        shapes.push(`<rect ${at} fill="none" stroke="${color}" stroke-opacity="${alpha}" stroke-dasharray="1 2"/>`);
+        shapes.push(rect(`${at} fill="none" stroke="${color}" stroke-opacity="${alpha}" stroke-dasharray="1 2"`, "stroke-opacity"));
       } else {
         const dot = Math.max(2, Math.round(cell / 4 + random() * 2));
         const o = (cell - dot) / 2;
-        shapes.push(`<rect x="${x + o}" y="${y + o}" width="${dot}" height="${dot}" fill="${color}" fill-opacity="${alpha}"/>`);
+        shapes.push(rect(`x="${x + o}" y="${y + o}" width="${dot}" height="${dot}" fill="${color}" fill-opacity="${alpha}"`, "fill-opacity"));
       }
     }
   }
   return shapes.join("");
 }
 
-const POSITION = { tl: "left top", tr: "right top", bl: "left bottom", br: "right bottom", top: "left top", bottom: "left bottom" };
+const POSITION = { tl: "left top", tr: "right top", bl: "left bottom", br: "right bottom", top: "left top", bottom: "left bottom", center: "center center" };
 const EDGES = new Set(["top", "bottom"]);
 
-function cornerURL(corner, options) {
+function ornamentURL(corner, options) {
   const { size } = options;
   const edge = EDGES.has(corner);
+  const center = corner === "center";
   const width = edge ? options.width : size;
   const flipX = !edge && corner.endsWith("r");
   const flipY = corner.startsWith("b");
   const transform = flipX || flipY ? ` transform="translate(${flipX ? width : 0} ${flipY ? size : 0}) scale(${flipX ? -1 : 1} ${flipY ? -1 : 1})"` : "";
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${size}" viewBox="0 0 ${width} ${size}" shape-rendering="crispEdges"><g${transform}>${cornerShapes({ ...options, width, edge })}</g></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${size}" viewBox="0 0 ${width} ${size}" shape-rendering="crispEdges"><g${transform}>${ornamentShapes({ ...options, width, edge, center })}</g></svg>`;
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 }
 
@@ -162,14 +181,22 @@ export function edgesSVG({ width, height, color = "#fff", dim = 0.12, center = 3
 }
 
 /** Paint the ornaments on one element, in the current theme's text color. */
-export function paintCorners(el) {
-  const corners = "sdCorners" in el.dataset ? (el.dataset.sdCorners || "br").split(/\s+/).filter((c) => c in POSITION) : [];
-  const size = Number(el.dataset.sdCornersSize) || DEFAULT_SIZE;
+export function paintOrnaments(el) {
+  // Empty states get a center ornament unless they ask for something else
+  // (data-sd-ornaments="none" turns it off).
+  const fallback = el.matches(".sd-empty") ? "center" : "br";
+  const corners = "sdOrnaments" in el.dataset || el.matches(".sd-empty") ? (el.dataset.sdOrnaments || fallback).split(/\s+/).filter((c) => c in POSITION) : [];
+  const size = Number(el.dataset.sdOrnamentsSize) || DEFAULT_SIZE;
+  // A center ornament fits the box's height, so it sits behind the message.
+  const centerSize = Math.max(80, Math.min(size, Math.round(el.clientHeight) || size, 320));
   const width = Math.max(1, Math.round(el.clientWidth));
   const style = getComputedStyle(el);
   const color = style.getPropertyValue("--sd-fg").trim() || "#ffffff";
   // Light themes need a touch more ink to read on white.
   const strength = style.colorScheme === "light" ? 0.42 : 0.28;
+  // A slow sparkle on a few squares, unless the user asks for less motion or
+  // the element opts out with data-sd-ornaments-still.
+  const sparkle = matchMedia("(prefers-reduced-motion: reduce)").matches || "sdOrnamentsStill" in el.dataset ? 0 : 0.12;
   // One corner gets "dust"; a second corner, when asked for, gets "blocks".
   const styles = corners.filter((c) => !EDGES.has(c)).length > 1 ? ["blocks", "dust"] : ["dust"];
   const images = [];
@@ -190,14 +217,21 @@ export function paintCorners(el) {
   // Edges always use a softer "dust"; corners alternate blocks, dust.
   corners.forEach((corner, i) => {
     const edge = EDGES.has(corner);
+    if (corner === "center") {
+      images.push(ornamentURL(corner, { size: centerSize, width: centerSize, color, strength: strength * 0.7, seed: 31 + centerSize, style: "dust", sparkle: sparkle ? sparkle * 1.5 : 0 }));
+      positions.push(POSITION.center);
+      sizes.push(`${centerSize}px ${centerSize}px`);
+      return;
+    }
     images.push(
-      cornerURL(corner, {
+      ornamentURL(corner, {
         size,
         width,
         color,
         // Blocks sit behind headings, so they stay quieter than the dust.
         strength: edge ? strength * 0.5 : styles[i % styles.length] === "blocks" ? strength * 0.5 : strength,
         seed: 11 + i * 97 + (edge ? width : 0),
+        sparkle,
         style: edge ? "dust" : styles[i % styles.length],
       }),
     );
@@ -212,10 +246,10 @@ export function paintCorners(el) {
   el.style.backgroundOrigin = "border-box";
 }
 
-const SELECTOR = "[data-sd-corners], [data-sd-edges]";
+const SELECTOR = "[data-sd-ornaments], [data-sd-edges], .sd-empty";
 
 function paintAll(root = document) {
-  for (const el of root.querySelectorAll(SELECTOR)) paintCorners(el);
+  for (const el of root.querySelectorAll(SELECTOR)) paintOrnaments(el);
 }
 
 let listening = false;
@@ -223,11 +257,11 @@ let listening = false;
 // Edge ornaments span the element's width, so repaint when it changes.
 const resized = new ResizeObserver((entries) => {
   for (const { target } of entries) {
-    if ("sdEdges" in target.dataset || /(top|bottom)/.test(target.dataset.sdCorners || "")) paintCorners(target);
+    if (target.matches(".sd-empty") || "sdEdges" in target.dataset || /(top|bottom)/.test(target.dataset.sdOrnaments || "")) paintOrnaments(target);
   }
 });
 
-export function initCorners(root = document) {
+export function initOrnaments(root = document) {
   paintAll(root);
   for (const el of root.querySelectorAll(SELECTOR)) resized.observe(el);
   if (listening) return;
@@ -236,4 +270,5 @@ export function initCorners(root = document) {
   const repaint = () => requestAnimationFrame(() => paintAll());
   document.addEventListener("sd:theme", repaint);
   matchMedia("(prefers-color-scheme: light)").addEventListener("change", repaint);
+  matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", repaint);
 }

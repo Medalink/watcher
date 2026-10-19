@@ -66,7 +66,7 @@ export function createRainRenderer(
     random = () => Math.random(),
   } = {},
 ) {
-  const ctx = canvas.getContext("2d", { alpha: false });
+  const ctx = canvas.getContext("2d", { alpha: true });
   let width = options.width;
   let height = options.height;
   let visible = options.visible;
@@ -277,6 +277,10 @@ export function createRainRenderer(
   function clipToOpen() {
     ctx.save();
     if (!holes.length) return;
+    // Holes are never drawn into, so clear them: pixels from before a theme
+    // change or a layout shift would otherwise stay behind (a black box on
+    // a light page).
+    for (const [hx, hy, hw, hh] of holes) ctx.clearRect(hx, hy, hw, hh);
     ctx.beginPath();
     ctx.rect(0, 0, canvas.width, canvas.height);
     for (const [hx, hy, hw, hh] of holes) ctx.rect(hx, hy, hw, hh);

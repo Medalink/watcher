@@ -64,3 +64,11 @@ export function onKeyAttr(event) {
     return;
   }
 }
+
+/** True when the event is this combo, unhandled, and not typed into a field. */
+export function isKey(event, combo) {
+  if (event.defaultPrevented || event.repeat) return false;
+  const pressed = keyOf(event);
+  if (typing(event.target) && !pressed.startsWith("mod+")) return false;
+  return pressed === normalize(combo);
+}

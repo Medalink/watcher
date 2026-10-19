@@ -8,9 +8,10 @@ as files; nothing here is hand-edited.
   layer, every `sd-` component; no Tailwind utilities).
 - `js/` — the library's ES modules, imported directly by the page.
 
-Pinned to signal-design commit `2063c67` (main, includes PR
-https://github.com/Medalink/signal-design/pull/1 — `sd-plot`, `sd-stat-box`
-and sortable table headers, which Watcher uses).
+Pinned to signal-design commit `10d47c9` (main, includes PRs
+https://github.com/Medalink/signal-design/pull/2 — shell grid-areas scoped to
+`.sd-shell` so `sd-rail`/`sd-titlebar` place normally outside a shell — and
+https://github.com/Medalink/signal-design/pull/4 — the dist banner).
 
 To update: build that repo (`pnpm build:css`), then refresh `signal.css`,
 `fonts/` and `js/` from the built source and update the pinned commit here.

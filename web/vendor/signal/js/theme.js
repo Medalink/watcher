@@ -4,6 +4,7 @@
  *   setTheme("light")           sets <html data-theme> and remembers it
  *   <button data-sd-theme="light">   sets a theme on click
  *   <button data-sd-theme-cycle>     steps through the themes
+ *   Shift+T                          steps through them too (init() binds it)
  */
 export const THEMES = ["ink", "graphite", "light", "auto"];
 const KEY = "sd-theme";
@@ -39,10 +40,13 @@ export function restoreTheme(fallback = "ink") {
   setTheme(THEMES.includes(saved) ? saved : fallback, { persist: false });
 }
 
+/** Step to the next theme (ink → graphite → light → auto → ink). */
+export function cycleTheme() {
+  setTheme(THEMES[(THEMES.indexOf(getTheme()) + 1) % THEMES.length]);
+}
+
 export function onThemeClick(event) {
   const set = event.target.closest("[data-sd-theme]");
   if (set) return setTheme(set.dataset.sdTheme);
-  if (event.target.closest("[data-sd-theme-cycle]")) {
-    setTheme(THEMES[(THEMES.indexOf(getTheme()) + 1) % THEMES.length]);
-  }
+  if (event.target.closest("[data-sd-theme-cycle]")) cycleTheme();
 }
