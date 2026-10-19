@@ -76,21 +76,22 @@ function groupElement(name) {
 
 // ---------- Formatting ----------
 
-const cpuTone = (cpu) => (cpu >= 50 ? 'pink' : cpu >= 25 ? 'amber' : 'green');
-const memoryTone = (memory) => (memory >= 90 ? 'pink' : memory >= 75 ? 'amber' : 'green');
+const cpuTone = (cpu) => (cpu >= 50 ? 'danger' : cpu >= 25 ? 'pending' : 'success');
+const memoryTone = (memory) => (memory >= 90 ? 'danger' : memory >= 75 ? 'pending' : 'success');
 
 function tone(container) {
     if (container.orphan) {
-        return 'amber';
+        return 'pending';
     }
 
-    return running(container) ? 'green' : 'neutral';
+    return running(container) ? 'success' : 'neutral';
 }
 
 function setTone(element, value) {
-    element.classList.remove('tone-green', 'tone-amber', 'tone-pink', 'tone-neutral');
     if (value) {
-        element.classList.add(`tone-${value}`);
+        element.dataset.tone = value;
+    } else {
+        delete element.dataset.tone;
     }
 }
 
@@ -191,6 +192,7 @@ function render(row, c) {
     text(row, '.port', c.port || '—');
     text(row, '.uptime', live ? c.uptime : '—');
     text(row, '.badge', c.orphan ? 'folder deleted' : c.state);
+    row.querySelector('.badge').dataset.tone = tone(c);
 
     const cpu = row.querySelector('.metric.cpu');
     const memory = row.querySelector('.metric.mem');
@@ -316,10 +318,10 @@ function snapshot(message) {
     $('total').textContent = `/ ${containers.length}`;
     renderTotals(live.reduce((sum, c) => sum + (c.cpu ?? 0), 0), live.reduce((sum, c) => sum + (c.memoryBytes ?? 0), 0));
     $('orphans').textContent = orphans.length;
-    setTone($('orphan-tile'), orphans.length ? 'amber' : 'neutral');
+    setTone($('orphan-tile'), orphans.length ? 'pending' : 'neutral');
     $('reap').disabled = orphans.length === 0;
 
-    $('live').classList.remove('offline');
+    $('live').dataset.tone = 'success';
     $('live-text').textContent = 'Live';
     $('error').hidden = true;
     updateExpandAll();
@@ -390,9 +392,9 @@ $('reap').addEventListener('click', () => {
 
 const removedPageSize = 10;
 const removals = {
-    reap: { label: 'Reaped', tone: 'amber' },
+    reap: { label: 'Reaped', tone: 'pending' },
     watcher: { label: 'Removed in Watcher', tone: 'neutral' },
-    outside: { label: 'Removed outside Watcher', tone: 'outside' },
+    outside: { label: 'Removed outside Watcher', tone: 'neutral' },
 };
 let removedOpen = localStorage.getItem('removed-open') === 'true';
 let removedOffset = 0;
@@ -420,14 +422,16 @@ const avgCpu = (c) => (c.avgCpuCores == null || !capacity ? '—' : percent(shar
 function removedRow(c) {
     const row = $('removed-template').content.firstElementChild.cloneNode(true);
     const how = removals[c.removedBy] ?? removals.outside;
-    row.classList.add(`tone-${how.tone}`);
+    row.dataset.tone = how.tone;
     row.querySelector('.name').textContent = c.title;
     row.querySelector('.name').title = c.name;
     row.querySelector('.sub').textContent = c.path ?? c.image;
     row.querySelector('.sub').title = c.path ?? c.image;
     row.querySelector('.group-cell').textContent = sectionOf(c);
     row.querySelector('.port').textContent = c.port || '—';
-    row.querySelector('.badge').textContent = how.label;
+    const badge = row.querySelector('.badge');
+    badge.textContent = how.label;
+    badge.dataset.tone = how.tone;
     const at = row.querySelector('.at');
     at.dataset.at = c.removedAt;
     at.textContent = ago(c.removedAt);
@@ -568,7 +572,7 @@ on('missing', () => {
     $('missing').closest('.page').classList.add('no-wslc');
 });
 on('offline', (data) => {
-    $('live').classList.add('offline');
+    $('live').dataset.tone = 'danger';
     $('live-text').textContent = 'Offline';
     $('error').textContent = data.message;
     $('error').hidden = false;

@@ -6,7 +6,7 @@ import { $, ago, bytes, clock, day, on, registerPage, request } from './app.js';
 // ---------- DOM helpers ----------
 // Runtime data only ever reaches the page as text nodes or properties; markup strings below are fixed literals.
 
-/** el('button', {class: 'btn', onclick}, 'Label') — props become properties where they exist, attributes otherwise. */
+/** el('button', {class: 'sd-btn', onclick}, 'Label') — props become properties where they exist, attributes otherwise. */
 function el(tag, props = {}, ...children) {
     const node = document.createElement(tag);
     let value;
@@ -71,14 +71,23 @@ const plural = (count, one, many = `${one}s`) => `${count} ${count === 1 ? one :
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const errorText = (error) => (error instanceof Error ? error.message : String(error)) || 'Unknown error.';
 
+/** sd tone names for the legacy palette words used across the page. */
+const TONES = { green: 'success', amber: 'pending', pink: 'danger', cyan: 'accent', violet: 'extra', orange: 'warning', neutral: 'neutral' };
+const toneOf = (tone) => TONES[tone] ?? tone;
+
 /** A <p> that says what is happening: '' for plain, 'busy', 'ok' or 'error'. */
 function status(node, kind, message) {
-    node.className = `mg-status${kind ? ` ${kind}` : ''}`;
+    node.className = `mg-status${kind === 'busy' ? ' busy' : ''} sd-meta`;
+    if (kind) {
+        node.dataset.tone = { ok: 'success', error: 'danger', busy: 'pending', warning: 'pending' }[kind];
+    } else {
+        delete node.dataset.tone;
+    }
     node.textContent = message ?? '';
     node.hidden = !message;
 }
 
-const statusLine = () => el('p', { class: 'mg-status', role: 'status', 'aria-live': 'polite', hidden: true });
+const statusLine = () => el('p', { class: 'mg-status sd-meta', role: 'status', 'aria-live': 'polite', hidden: true });
 
 /** Disables a button while work runs, so nothing is sent twice. */
 async function busyWhile(button, label, work) {
@@ -109,10 +118,16 @@ function field(labelText, control, hint = '') {
 let fieldSeq = 0;
 
 const button = (label, onclick, kind = 'secondary', props = {}) =>
-    el('button', { type: 'button', class: `btn btn-${kind} btn-sm`, onclick, ...props }, label);
+    el('button', {
+        type: 'button',
+        class: kind === 'primary' ? 'sd-btn sd-btn-primary sd-btn-sm' : 'sd-btn sd-btn-sm',
+        ...(kind === 'danger' ? { dataset: { tone: 'danger' } } : {}),
+        onclick,
+        ...props,
+    }, label);
 
 function badge(label, tone = '') {
-    return el('span', { class: `mg-badge${tone ? ` tone-${tone}` : ''}` }, label);
+    return el('span', { class: 'sd-badge', ...(tone ? { dataset: { tone: toneOf(tone) } } : {}) }, label);
 }
 
 /** A two-column fact list; values that are long wrap and stay selectable. */
@@ -125,7 +140,7 @@ function facts(pairs) {
 
 /** A JSON block with a copy button. */
 function jsonBlock(value, label = 'JSON') {
-    const pre = el('pre', { class: 'mg-json', tabIndex: 0, 'aria-label': label }, JSON.stringify(value, null, 2) ?? 'null');
+    const pre = el('pre', { class: 'mg-json sd-code', tabIndex: 0, 'aria-label': label }, JSON.stringify(value, null, 2) ?? 'null');
     const note = el('span', { class: 'hint', role: 'status' });
     const copy = button('Copy', async () => {
         try {
@@ -141,8 +156,8 @@ function jsonBlock(value, label = 'JSON') {
 
 /** A plain table. columns: [{label, value(row) → string|Node, class?}]. */
 function table(rows, columns, { caption = '', rowProps } = {}) {
-    return el('div', { class: 'mg-table-wrap' }, el('table', { class: 'mg-table' },
-        caption ? el('caption', { class: 'mg-sr' }, caption) : null,
+    return el('div', { class: 'mg-table-wrap' }, el('table', { class: 'sd-table mg-table' },
+        caption ? el('caption', { class: 'sd-sr-only' }, caption) : null,
         el('thead', {}, el('tr', {}, columns.map((c) => el('th', { scope: 'col', class: c.class }, c.label)))),
         el('tbody', {}, rows.map((row) => el('tr', rowProps?.(row) ?? {},
             columns.map((c) => {
@@ -154,7 +169,7 @@ function table(rows, columns, { caption = '', rowProps } = {}) {
 /** Renders a JSON node whose shape the contract leaves open: arrays of objects and maps of objects become tables. */
 function shape(value, empty) {
     if (value == null || (Array.isArray(value) && value.length === 0) || (isObject(value) && Object.keys(value).length === 0)) {
-        return el('p', { class: 'empty' }, empty);
+        return el('p', { class: 'sd-empty' }, empty);
     }
     const cell = (v) => (v == null ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v));
     if (Array.isArray(value) && value.every(isObject)) {
@@ -247,10 +262,11 @@ function openDialog({ title, tone = 'cyan', wide = false, body = [], onClose = (
     const titleId = `mg-dialog-title-${++dialogSeq}`;
     const content = el('div', { class: 'mg-dialog-body' });
     const foot = el('div', { class: 'mg-dialog-actions' });
-    const heading = el('h3', { id: titleId }, el('span', { class: 'diamond', 'aria-hidden': 'true' }, '◇'), el('span', {}, title));
-    const close = el('button', { type: 'button', class: 'mg-close', title: 'Close', 'aria-label': 'Close dialog' }, icon(icons.close));
+    const heading = el('h3', { id: titleId }, el('span', { class: 'sd-dot', 'aria-hidden': 'true' }), el('span', {}, title));
+    const close = el('button', { type: 'button', class: 'sd-btn sd-btn-ghost sd-btn-sm sd-btn-icon', title: 'Close', 'aria-label': 'Close dialog' }, icon(icons.close));
     const box = el('div', {
-        class: `mg-dialog tone-${tone}${wide ? ' wide' : ''}`, role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId, tabIndex: -1,
+        class: `mg-dialog${wide ? ' wide' : ''}`, role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId, tabIndex: -1,
+        dataset: { tone: toneOf(tone) },
     }, el('div', { class: 'mg-dialog-head' }, heading, close), content, foot);
     const overlay = el('div', { class: 'mg-overlay' }, box);
     overlay.style.zIndex = String(Math.min(49, 40 + stack.length));
@@ -321,7 +337,7 @@ document.addEventListener('keydown', (event) => {
 function targetList(items) {
     return el('div', { class: 'mg-targets-wrap' },
         el('div', { class: 'label' }, `Affected (${items.length})`),
-        el('ul', { class: 'mg-targets', 'aria-label': 'Affected targets' }, items.map((item) => el('li', { class: 'num' }, item))));
+        el('ul', { class: 'mg-targets', 'aria-label': 'Affected targets' }, items.map((item) => el('li', { class: 'sd-num' }, item))));
 }
 
 /** Resolves true only when the named action button is pressed. */
@@ -333,11 +349,15 @@ function confirmAction({ title, message, items = [], warning = '', action = 'Con
             body: [
                 el('p', {}, message),
                 items.length ? targetList(items) : null,
-                warning ? el('p', { class: 'mg-warning' }, warning) : null,
+                warning ? el('p', { class: 'sd-note', dataset: { tone: 'warning' } }, warning) : null,
             ],
             onClose: () => resolve(ok),
         });
-        const confirm = el('button', { type: 'button', class: `btn btn-sm ${tone === 'pink' ? 'btn-danger' : 'btn-primary'}` }, action);
+        const confirm = el('button', {
+            type: 'button',
+            class: `sd-btn sd-btn-sm${tone === 'pink' ? '' : ' sd-btn-primary'}`,
+            ...(tone === 'pink' ? { dataset: { tone: 'danger' } } : {}),
+        }, action);
         confirm.addEventListener('click', () => {
             ok = true;
             dialog.close();
@@ -354,31 +374,28 @@ function outcomeTable(results) {
     const failed = results.filter((r) => !r.ok).length;
 
     return el('div', { class: 'mg-outcome' },
-        el('p', { class: failed ? 'mg-status error' : 'mg-status ok' },
+        el('p', { class: 'mg-status sd-meta', dataset: { tone: failed ? 'danger' : 'success' } },
             failed ? `${failed} of ${results.length} failed.` : `All ${plural(results.length, 'target')} succeeded.`),
         table(results, [
-            { label: 'Target', value: (r) => r.name, class: 'num' },
+            { label: 'Target', value: (r) => r.name, class: 'sd-num' },
             { label: 'Result', value: (r) => badge(r.ok ? 'ok' : 'failed', r.ok ? 'green' : 'pink') },
-            { label: 'Time', value: (r) => (r.ms == null ? '—' : `${(r.ms / 1000).toFixed(1)} s`), class: 'num' },
-            { label: 'Output', value: (r) => el('span', { class: 'mg-output' }, r.detail || '—') },
+            { label: 'Time', value: (r) => (r.ms == null ? '—' : `${(r.ms / 1000).toFixed(1)} s`), class: 'sd-num' },
+            { label: 'Output', value: (r) => el('span', { class: 'mg-output sd-code' }, r.detail || '—') },
         ], { caption: 'Per-target results' }));
 }
 
 // ---------- Pages ----------
 
-function railItem(page, label, title, markup, tint) {
-    const link = el('a', { class: 'rail-item', href: `#${page}`, dataset: { page }, title }, el('span', {}, label));
-    const svg = icon(markup);
-    svg.classList.add(tint);
-    link.prepend(svg);
+function railItem(page, label, title, markup) {
+    const link = el('a', { class: 'sd-rail-item', href: `#${page}`, dataset: { page }, title }, icon(markup), el('span', {}, label));
 
     return link;
 }
 
-const rail = document.querySelector('.rail');
+const rail = document.querySelector('.sd-rail-list');
 rail?.append(
-    railItem('manage', 'Manage', 'Inspect and control existing workloads, images, volumes and networks', icons.manage, 'tint-green'),
-    railItem('logs', 'Logs', 'Combined, searchable container logs', icons.logs, 'tint-cyan'));
+    railItem('manage', 'Manage', 'Inspect and control existing workloads, images, volumes and networks', icons.manage),
+    railItem('logs', 'Logs', 'Combined, searchable container logs', icons.logs));
 
 function page(name, heading, intro, side = null) {
     const section = el('section', { class: 'page mg-page', dataset: { page: name }, hidden: true },
@@ -392,7 +409,7 @@ const visible = (section) => section.isConnected && !section.hidden && !document
 
 // ---------- Manage page and its tabs ----------
 
-const tabBar = el('div', { class: 'tabs mg-tabs', role: 'tablist', 'aria-label': 'Management sections' });
+const tabBar = el('div', { class: 'sd-tabs mg-tabs', role: 'tablist', 'aria-label': 'Management sections' });
 const managePage = page('manage', 'Manage',
     'Inspect workloads, control project groups, and troubleshoot networking and storage.');
 managePage.append(tabBar);
@@ -422,7 +439,6 @@ function selectTab(key, focus = false) {
     localStorage.setItem('manage-tab', key);
     for (const [name, entry] of tabs) {
         const on = name === key;
-        entry.tab.classList.toggle('current', on);
         entry.tab.setAttribute('aria-selected', String(on));
         entry.tab.tabIndex = on ? 0 : -1;
         entry.panel.hidden = !on;
@@ -456,14 +472,14 @@ const rowElements = new Map();
 let bulkRun = null;
 
 const containersPanel = addTab('containers', 'Containers', { shown: () => renderContainers() });
-const containerSearch = el('input', { type: 'search', class: 'field mg-search', placeholder: 'Filter by name, image or group', spellcheck: false, 'aria-label': 'Filter containers' });
-const stopTimeout = el('input', { type: 'number', class: 'field mg-narrow', min: 1, max: 120, step: 1, value: '10', 'aria-label': 'Stop timeout in seconds' });
+const containerSearch = el('input', { type: 'search', class: 'mg-search', placeholder: 'Filter by name, image or group', spellcheck: false, 'aria-label': 'Filter containers' });
+const stopTimeout = el('input', { type: 'number', class: 'mg-narrow', min: 1, max: 120, step: 1, value: '10', 'aria-label': 'Stop timeout in seconds' });
 const selectionCount = el('span', { class: 'hint', role: 'status', 'aria-live': 'polite' });
 const bulkStatus = statusLine();
-const bulkProgress = el('div', { class: 'card tone-amber mg-progress', hidden: true });
+const bulkProgress = el('div', { class: 'sd-card mg-progress', dataset: { tone: 'pending' }, hidden: true });
 const bulkResults = el('div', { class: 'mg-results' });
 const containerList = el('div', { class: 'mg-groups', role: 'group', 'aria-label': 'Containers' });
-const containerEmpty = el('p', { class: 'empty', hidden: true });
+const containerEmpty = el('p', { class: 'sd-empty', hidden: true });
 const bulkButtons = {
     start: button('Start selected', () => bulk('start'), 'secondary', { 'aria-label': 'Start the selected containers' }),
     stop: button('Stop selected', () => bulk('stop'), 'secondary', { 'aria-label': 'Stop the selected containers' }),
@@ -512,7 +528,7 @@ function groupElement(name) {
         const box = el('input', { type: 'checkbox', class: 'mg-check' });
         const element = el('section', { class: 'mg-group' },
             el('div', { class: 'mg-group-head' }, el('label', { class: 'mg-inline' }, box,
-                el('h2', {}, el('span', { class: 'diamond', 'aria-hidden': 'true' }, '◇'), name, el('span', { class: 'count' })))),
+                el('h2', {}, el('span', { class: 'sd-dot', 'aria-hidden': 'true' }), name, el('span', { class: 'count sd-count' })))),
             el('div', { class: 'mg-crows' }));
         box.setAttribute('aria-label', `Select every listed container in ${name}`);
         box.addEventListener('change', () => {
@@ -536,9 +552,9 @@ function rowElement(name) {
         const terminal = button('Terminal…', () => openTerminal(name));
         const row = el('div', { class: 'mg-crow', dataset: { name } },
             box,
-            el('div', { class: 'mg-cname' }, el('span', { class: 'name' }), el('span', { class: 'sub num' })),
+            el('div', { class: 'mg-cname' }, el('span', { class: 'name' }), el('span', { class: 'sub sd-num' })),
             el('span', { class: 'mg-cstate' }),
-            el('span', { class: 'mg-cport num' }),
+            el('span', { class: 'mg-cport sd-num' }),
             el('div', { class: 'mg-row-actions' },
                 button('Inspect', () => openInspect(name)),
                 button('Logs', () => openLogsFor(name)),
@@ -602,8 +618,9 @@ function renderContainers() {
             setText(row.querySelector('.sub'), c.title === c.name ? (c.image ?? '') : `${c.name} · ${c.image ?? ''}`);
             const state = row.querySelector('.mg-cstate');
             const label = c.orphan ? 'folder deleted' : c.state;
-            if (state.textContent !== label || state.dataset.tone !== stateTone(c)) {
-                state.dataset.tone = stateTone(c);
+            const tone = toneOf(stateTone(c));
+            if (state.textContent !== label || state.dataset.tone !== tone) {
+                state.dataset.tone = tone;
                 state.replaceChildren(badge(label, stateTone(c)));
             }
             setText(row.querySelector('.mg-cport'), c.port || '—');
@@ -671,7 +688,7 @@ async function bulk(op) {
     bulkRun = { id, names, live: [] };
     status(bulkStatus, '', '');
     bulkResults.replaceChildren();
-    const progressText = el('p', { class: 'mg-status busy', role: 'status', 'aria-live': 'polite' }, `${doing} ${plural(names.length, 'container')}…`);
+    const progressText = el('p', { class: 'mg-status busy sd-meta', dataset: { tone: 'pending' }, role: 'status', 'aria-live': 'polite' }, `${doing} ${plural(names.length, 'container')}…`);
     const progressRows = el('div', {});
     bulkProgress.replaceChildren(el('div', { class: 'mg-row-actions' }, progressText, cancelButton(id)), progressRows);
     bulkProgress.hidden = false;
@@ -683,16 +700,17 @@ async function bulk(op) {
     try {
         const result = await manage('bulk', { names, op, timeout }, id);
         const rows = (result?.results ?? []).map((r) => ({ name: r.name, ok: r.ok, detail: r.output, ms: r.ms }));
-        bulkResults.replaceChildren(el('div', { class: 'card' },
-            el('div', { class: 'section-head' }, el('h2', {}, el('span', { class: 'diamond', 'aria-hidden': 'true' }, '◇'), `${verb} results`),
+        bulkResults.replaceChildren(el('div', { class: 'sd-card' },
+            el('div', { class: 'sd-card-head' }, el('h2', {}, el('span', { class: 'sd-dot', 'aria-hidden': 'true' }), `${verb} results`),
                 el('span', { class: 'hint' }, clock(Date.now()))),
-            outcomeTable(rows),
-            names.length > rows.length ? el('p', { class: 'mg-status error' }, `${names.length - rows.length} of ${names.length} were not attempted.`) : null));
+            el('div', { class: 'sd-card-body' },
+                outcomeTable(rows),
+                names.length > rows.length ? el('p', { class: 'mg-status sd-meta', dataset: { tone: 'danger' } }, `${names.length - rows.length} of ${names.length} were not attempted.`) : null)));
     } catch (error) {
         const done = bulkRun.live;
         const skipped = names.filter((name) => !done.some((r) => r.name === name));
-        bulkResults.replaceChildren(el('div', { class: 'card tone-pink' },
-            el('p', { class: 'mg-status error' }, `${verb} stopped early: ${errorText(error)}`),
+        bulkResults.replaceChildren(el('div', { class: 'sd-card', dataset: { tone: 'danger' } },
+            el('p', { class: 'mg-status sd-meta', dataset: { tone: 'danger' } }, `${verb} stopped early: ${errorText(error)}`),
             done.length ? outcomeTable(done) : null,
             skipped.length ? el('div', {}, el('p', { class: 'hint' }, 'Not attempted:'), targetList(skipped)) : null));
     } finally {
@@ -751,13 +769,12 @@ function memberships(networks) {
 
 /** Small tablist inside a dialog; each pane builds once, when first opened. */
 function innerTabs(label, panes) {
-    const bar = el('div', { class: 'tabs mg-inner-tabs', role: 'tablist', 'aria-label': label });
+    const bar = el('div', { class: 'sd-tabs mg-inner-tabs', role: 'tablist', 'aria-label': label });
     const holder = el('div', { class: 'mg-inner-panes' });
     const built = new Map();
     const select = (index, focus = false) => {
         panes.forEach((_, at) => {
             const tab = bar.children[at];
-            tab.classList.toggle('current', at === index);
             tab.setAttribute('aria-selected', String(at === index));
             tab.tabIndex = at === index ? 0 : -1;
         });
@@ -791,20 +808,20 @@ function overviewPane(data) {
     const health = healthStatus(data.health);
 
     return facts([
-        ['Name', el('span', { class: 'num' }, text(data.name ?? raw.Name))],
+        ['Name', el('span', { class: 'sd-num' }, text(data.name ?? raw.Name))],
         ['State', el('span', { class: 'mg-inline' }, stateBadge(data.state ?? state), health ? badge(`health: ${health}`, healthTone(health)) : null)],
         ['Exit code', data.exitCode ?? state.ExitCode],
         ['Started', when(state.StartedAt)],
         ['Finished', when(state.FinishedAt)],
         ['Created', when(raw.Created)],
-        ['Image', el('span', { class: 'num' }, text(data.image ?? raw.Config?.Image ?? raw.Image))],
-        ['Entrypoint', el('code', { class: 'mg-code' }, command(raw.Config?.Entrypoint))],
-        ['Command', el('code', { class: 'mg-code' }, command(data.command ?? raw.Config?.Cmd))],
+        ['Image', el('span', { class: 'sd-num' }, text(data.image ?? raw.Config?.Image ?? raw.Image))],
+        ['Entrypoint', el('code', { class: 'mg-code sd-code' }, command(raw.Config?.Entrypoint))],
+        ['Command', el('code', { class: 'mg-code sd-code' }, command(data.command ?? raw.Config?.Cmd))],
         ['User', data.user || raw.Config?.User || 'image default'],
-        ['Working dir', el('span', { class: 'num' }, data.workingDir || raw.Config?.WorkingDir || 'image default')],
+        ['Working dir', el('span', { class: 'sd-num' }, data.workingDir || raw.Config?.WorkingDir || 'image default')],
         ['Network mode', raw.HostConfig?.NetworkMode],
         ['Stop timeout', raw.Config?.StopTimeout == null ? null : `${raw.Config.StopTimeout} s`],
-        ['ID', el('span', { class: 'num' }, text(raw.Id))],
+        ['ID', el('span', { class: 'sd-num' }, text(raw.Id))],
     ]);
 }
 
@@ -815,15 +832,15 @@ function healthPane(data, capabilities) {
     const log = isObject(health) ? health.Log ?? health.log ?? [] : [];
     const parts = [];
     if (capabilities && capabilities.health === false) {
-        parts.push(el('p', { class: 'mg-warning' }, 'The installed wslc does not report native health. Use Diagnose for a Windows-side reachability check.'));
+        parts.push(el('p', { class: 'sd-note', dataset: { tone: 'warning' } }, 'The installed wslc does not report native health. Use Diagnose for a Windows-side reachability check.'));
     }
     if (!status && !check) {
-        parts.push(el('p', { class: 'empty' }, 'No health check is defined for this container, so wslc has no health status to report.'));
+        parts.push(el('p', { class: 'sd-empty' }, 'No health check is defined for this container, so wslc has no health status to report.'));
     } else {
         parts.push(facts([
             ['Status', status ? badge(status, healthTone(status)) : 'not reported'],
             ['Failing streak', isObject(health) ? health.FailingStreak : null],
-            ['Test', check?.Test ? el('code', { class: 'mg-code' }, command(check.Test)) : null],
+            ['Test', check?.Test ? el('code', { class: 'mg-code sd-code' }, command(check.Test)) : null],
             ['Interval', check?.Interval ? `${check.Interval / 1e9} s` : null],
             ['Timeout', check?.Timeout ? `${check.Timeout / 1e9} s` : null],
             ['Retries', check?.Retries],
@@ -832,7 +849,7 @@ function healthPane(data, capabilities) {
             parts.push(el('div', { class: 'label mg-sub' }, 'Recent probes'), table(log.slice(-10).reverse(), [
                 { label: 'Ended', value: (entry) => when(entry.End) },
                 { label: 'Exit', value: (entry) => badge(String(entry.ExitCode ?? '?'), entry.ExitCode === 0 ? 'green' : 'pink') },
-                { label: 'Output', value: (entry) => el('span', { class: 'mg-output' }, (entry.Output ?? '').trim() || '—') },
+                { label: 'Output', value: (entry) => el('span', { class: 'mg-output sd-code' }, (entry.Output ?? '').trim() || '—') },
             ], { caption: 'Recent health probes' }));
         }
     }
@@ -847,14 +864,14 @@ function environmentPane(data) {
         return at < 0 ? [String(line), ''] : [line.slice(0, at), line.slice(at + 1)];
     });
     if (entries.length === 0) {
-        return el('p', { class: 'empty' }, 'No environment variables are set.');
+        return el('p', { class: 'sd-empty' }, 'No environment variables are set.');
     }
-    const filter = el('input', { type: 'search', class: 'field mg-search', placeholder: 'Filter variables', 'aria-label': 'Filter environment variables', spellcheck: false });
+    const filter = el('input', { type: 'search', class: 'mg-search', placeholder: 'Filter variables', 'aria-label': 'Filter environment variables', spellcheck: false });
     const holder = el('div', {});
     const draw = () => {
         const query = filter.value.trim().toLowerCase();
         holder.replaceChildren(table(entries.filter(([key]) => key.toLowerCase().includes(query)), [
-            { label: 'Variable', value: ([key]) => key, class: 'num' },
+            { label: 'Variable', value: ([key]) => key, class: 'sd-num' },
             { label: 'Value', value: ([, value]) => value, class: 'num mg-dim' },
         ], { caption: 'Environment variables, values masked' }));
     };
@@ -878,14 +895,14 @@ function limitsPane(data) {
             ['Memory', memoryBytes ? bytes(memoryBytes) : 'No limit (bounded by WSL\'s memory)'],
         ]),
         ulimits?.length ? [el('div', { class: 'label mg-sub' }, 'Ulimits'), shape(ulimits, 'None')] : null,
-        el('p', { class: 'mg-note' },
+        el('p', { class: 'sd-note', dataset: { tone: 'accent' } },
             'Limits are fixed when a container is created. Changing them means recreating the container, which Watcher deliberately does not do, so they are shown read-only.'),
     ];
 }
 
 async function openInspect(name) {
     const statusNode = statusLine();
-    const holder = el('div', { class: 'mg-inspect' }, el('p', { class: 'mg-status busy' }, 'Reading inspect data…'));
+    const holder = el('div', { class: 'mg-inspect' }, el('p', { class: 'mg-status busy sd-meta', dataset: { tone: 'pending' } }, 'Reading inspect data…'));
     const dialog = openDialog({ title: `Inspect ${titleOf(name)}`, wide: true, body: [holder, statusNode] });
     const refresh = button('Refresh', () => load());
     append(dialog.foot, [
@@ -924,7 +941,7 @@ async function openInspect(name) {
             status(statusNode, '', `Read at ${clock(Date.now())}.`);
         } catch (error) {
             if (mine === ticket && dialog.open) {
-                holder.replaceChildren(el('p', { class: 'mg-status error' }, `Could not inspect ${name}: ${errorText(error)}`));
+                holder.replaceChildren(el('p', { class: 'mg-status sd-meta', dataset: { tone: 'danger' } }, `Could not inspect ${name}: ${errorText(error)}`));
                 status(statusNode, '', '');
             }
         } finally {
@@ -940,15 +957,15 @@ const shells = ['/bin/sh', '/bin/bash', '/bin/ash', '/bin/zsh'];
 
 function openTerminal(name) {
     const c = containerByName(name);
-    const user = el('input', { type: 'text', class: 'field', placeholder: 'image default', spellcheck: false, autocomplete: 'off' });
-    const workdir = el('input', { type: 'text', class: 'field', placeholder: 'image default', spellcheck: false, autocomplete: 'off' });
-    const shell = el('select', { class: 'field' }, shells.map((path) => new Option(path, path)));
+    const user = el('input', { type: 'text', placeholder: 'image default', spellcheck: false, autocomplete: 'off' });
+    const workdir = el('input', { type: 'text', placeholder: 'image default', spellcheck: false, autocomplete: 'off' });
+    const shell = el('select', {}, shells.map((path) => new Option(path, path)));
     const statusNode = statusLine();
     const dialog = openDialog({
         title: `Terminal in ${titleOf(name)}`,
         body: [
             el('p', {}, 'Opens Windows Terminal with an interactive shell inside this container. No command text is passed, only the options below.'),
-            c && !running(c) ? el('p', { class: 'mg-warning' }, `${titleOf(name)} is ${c.state}. A shell needs the container running.`) : null,
+            c && !running(c) ? el('p', { class: 'sd-note', dataset: { tone: 'warning' } }, `${titleOf(name)} is ${c.state}. A shell needs the container running.`) : null,
             el('div', { class: 'mg-form' },
                 field('User', user, 'name, uid or uid:gid'),
                 field('Working directory', workdir, 'absolute path inside the container'),
@@ -995,7 +1012,7 @@ function openFiles(name, start = '/') {
     let chosen = null;
     let ticket = 0;
     const c = containerByName(name);
-    const pathInput = el('input', { type: 'text', class: 'field mg-grow num', value: path, spellcheck: false, 'aria-label': 'Path inside the container' });
+    const pathInput = el('input', { type: 'text', class: 'mg-grow sd-num', value: path, spellcheck: false, 'aria-label': 'Path inside the container' });
     const list = el('div', { class: 'mg-files', role: 'listbox', 'aria-label': 'Directory entries' });
     const preview = el('div', {});
     const statusNode = statusLine();
@@ -1004,14 +1021,14 @@ function openFiles(name, start = '/') {
         title: `Files in ${titleOf(name)}`,
         wide: true,
         body: [
-            c && !running(c) ? el('p', { class: 'mg-warning' }, 'Listing runs a read-only command inside the container, so it needs the container running. Copying works either way.') : null,
+            c && !running(c) ? el('p', { class: 'sd-note', dataset: { tone: 'warning' } }, 'Listing runs a read-only command inside the container, so it needs the container running. Copying works either way.') : null,
             el('form', { class: 'mg-row-actions', onsubmit: (event) => {
                 event.preventDefault();
                 browse(pathInput.value.trim() || '/');
             } },
-            el('button', { type: 'button', class: 'btn btn-secondary btn-sm icon-only', title: 'Parent folder', 'aria-label': 'Parent folder', onclick: () => browse(parentPath(path)) }, icon(icons.up)),
+            el('button', { type: 'button', class: 'sd-btn sd-btn-icon sd-btn-sm', title: 'Parent folder', 'aria-label': 'Parent folder', onclick: () => browse(parentPath(path)) }, icon(icons.up)),
             pathInput,
-            el('button', { type: 'submit', class: 'btn btn-secondary btn-sm' }, 'Go')),
+            el('button', { type: 'submit', class: 'sd-btn sd-btn-sm' }, 'Go')),
             list,
             preview,
             choice,
@@ -1040,9 +1057,11 @@ function openFiles(name, start = '/') {
         const sorted = [...entries].sort((a, b) => isDirectory(b) - isDirectory(a) || a.name.localeCompare(b.name));
         list.replaceChildren(...(sorted.length ? sorted.map((entry) => {
             const node = el('div', {
-                class: 'mg-file', role: 'option', tabIndex: 0, 'aria-selected': 'false', dataset: { name: entry.name },
+                class: 'mg-file sd-item', role: 'option', tabIndex: 0, 'aria-selected': 'false', dataset: { name: entry.name },
                 title: isDirectory(entry) ? 'Double-click or press Enter to open' : 'Select to copy out',
-            }, icon(isDirectory(entry) ? icons.folder : isLink(entry) ? icons.link : icons.file), el('span', { class: 'num' }, entry.name), el('span', { class: 'hint' }, entry.type ?? ''));
+            }, icon(isDirectory(entry) ? icons.folder : isLink(entry) ? icons.link : icons.file),
+                el('span', { class: 'sd-item-body' }, el('span', { class: 'sd-item-title' }, entry.name)),
+                el('span', { class: 'sd-item-end' }, entry.type ?? ''));
             node.addEventListener('click', () => choose(entry));
             node.addEventListener('dblclick', () => isDirectory(entry) && browse(joinPath(path, entry.name)));
             node.addEventListener('keydown', (event) => {
@@ -1061,7 +1080,7 @@ function openFiles(name, start = '/') {
                 }
             });
             return node;
-        }) : [el('p', { class: 'empty' }, 'This folder is empty.')]));
+        }) : [el('p', { class: 'sd-empty' }, 'This folder is empty.')]));
     };
 
     async function browse(next) {
@@ -1085,7 +1104,7 @@ function openFiles(name, start = '/') {
             list.hidden = choice.hidden = isFile;
             copyFileIn.disabled = copyFolderIn.disabled = isFile;
             preview.replaceChildren(...(result?.text != null
-                ? [el('div', { class: 'label mg-sub' }, 'Contents'), el('pre', { class: 'mg-json', tabIndex: 0, 'aria-label': 'File contents' }, result.text)]
+                ? [el('div', { class: 'label mg-sub' }, 'Contents'), el('pre', { class: 'mg-json sd-code', tabIndex: 0, 'aria-label': 'File contents' }, result.text)]
                 : []));
             status(statusNode, result?.binary || result?.truncated ? 'warning' : '', result?.binary
                 ? 'Binary file; preview is unavailable. Select it from its parent folder to copy it out.'
@@ -1173,10 +1192,10 @@ function openFiles(name, start = '/') {
 
 function openDiagnose(name) {
     const port = hostPort(containerByName(name));
-    const host = el('input', { type: 'text', class: 'field', value: 'localhost', spellcheck: false, autocomplete: 'off' });
-    const portField = el('input', { type: 'number', class: 'field mg-narrow', min: 1, max: 65535, step: 1, value: String(port) });
+    const host = el('input', { type: 'text', value: 'localhost', spellcheck: false, autocomplete: 'off' });
+    const portField = el('input', { type: 'number', class: 'mg-narrow', min: 1, max: 65535, step: 1, value: String(port) });
     const http = el('input', { type: 'checkbox', checked: true });
-    const url = el('input', { type: 'url', class: 'field mg-grow', value: `http://localhost:${port}/`, spellcheck: false, autocomplete: 'off' });
+    const url = el('input', { type: 'url', class: 'mg-grow', value: `http://localhost:${port}/`, spellcheck: false, autocomplete: 'off' });
     const results = el('div', { class: 'mg-diagnose' });
     const statusNode = statusLine();
     portField.addEventListener('input', () => {
@@ -1246,11 +1265,11 @@ function openDiagnose(name) {
                         ? el('ul', { class: 'mg-checks' }, result.checks.map((check) => el('li', {},
                             badge(check.ok ? 'pass' : 'fail', check.ok ? 'green' : 'pink'),
                             el('span', { class: 'mg-check-name' }, check.name),
-                            el('span', { class: 'mg-output' }, check.detail ?? ''))))
-                        : el('p', { class: 'empty' }, 'No checks were reported.'),
+                            el('span', { class: 'mg-output sd-code' }, check.detail ?? ''))))
+                        : el('p', { class: 'sd-empty' }, 'No checks were reported.'),
                     result?.ports != null ? [el('div', { class: 'label mg-sub' }, 'Windows listeners and published ports'), shape(result.ports, 'Nothing is listening.')] : null));
             } catch (error) {
-                results.append(section('Network checks', '', el('p', { class: 'mg-status error' }, errorText(error))));
+                results.append(section('Network checks', '', el('p', { class: 'mg-status sd-meta', dataset: { tone: 'danger' } }, errorText(error))));
             }
             if (!dialog.open) {
                 return;
@@ -1265,10 +1284,10 @@ function openDiagnose(name) {
                     const ready = await manage('readiness', { name, url: target, confirmed: restricted }, id);
                     results.append(section('Windows HTTP reachability', 'One request from Windows to this URL, without redirects. Separate from the container\'s own health check.',
                         el('p', { class: 'mg-inline' }, badge(ready?.ok ? 'reachable' : 'not ready', ready?.ok ? 'green' : 'pink'),
-                            el('span', { class: 'num' }, `${ready?.status || 'no response'} · ${ready?.ms ?? '?'} ms`)),
-                        el('p', { class: 'mg-output' }, ready?.detail ?? '')));
+                            el('span', { class: 'sd-num' }, `${ready?.status || 'no response'} · ${ready?.ms ?? '?'} ms`)),
+                        el('p', { class: 'mg-output sd-code' }, ready?.detail ?? '')));
                 } catch (error) {
-                    results.append(section('Windows HTTP reachability', '', el('p', { class: 'mg-status error' }, errorText(error))));
+                    results.append(section('Windows HTTP reachability', '', el('p', { class: 'mg-status sd-meta', dataset: { tone: 'danger' } }, errorText(error))));
                 }
             }
             if (!dialog.open) {
@@ -1282,7 +1301,7 @@ function openDiagnose(name) {
                     el('p', { class: 'mg-inline' }, health ? badge(health, healthTone(health)) : badge('no health check', 'neutral'),
                         stateBadge(data?.state ?? data?.raw?.State))));
             } catch (error) {
-                results.append(section('Native health (wslc)', '', el('p', { class: 'mg-status error' }, errorText(error))));
+                results.append(section('Native health (wslc)', '', el('p', { class: 'mg-status sd-meta', dataset: { tone: 'danger' } }, errorText(error))));
             }
             status(statusNode, '', `Finished at ${clock(Date.now())}.`);
         } finally {
@@ -1295,8 +1314,8 @@ function openDiagnose(name) {
 // ---------- Network membership ----------
 
 function openMembership({ container = '', network = '' } = {}) {
-    const containerSelect = el('select', { class: 'field mg-grow' });
-    const networkSelect = el('select', { class: 'field mg-grow' });
+    const containerSelect = el('select', { class: 'mg-grow' });
+    const networkSelect = el('select', { class: 'mg-grow' });
     const current = el('div', {});
     const statusNode = statusLine();
     const connect = button('Connect…', () => change(false), 'primary', { disabled: true });
@@ -1328,7 +1347,7 @@ function openMembership({ container = '', network = '' } = {}) {
             current.replaceChildren();
             return;
         }
-        current.replaceChildren(el('p', { class: 'mg-status busy' }, 'Reading memberships…'));
+        current.replaceChildren(el('p', { class: 'mg-status busy sd-meta', dataset: { tone: 'pending' } }, 'Reading memberships…'));
         try {
             const data = await manage('inspect', { name: containerSelect.value });
             if (mine !== ticket) {
@@ -1336,10 +1355,10 @@ function openMembership({ container = '', network = '' } = {}) {
             }
             joined = memberships(data?.networks ?? data?.raw?.NetworkSettings?.Networks);
             current.replaceChildren(el('div', { class: 'label mg-sub' }, 'Currently connected to'),
-                joined.length ? el('ul', { class: 'mg-list' }, joined.map((n) => el('li', { class: 'num' }, n))) : el('p', { class: 'empty' }, 'No networks.'));
+                joined.length ? el('ul', { class: 'mg-list' }, joined.map((n) => el('li', { class: 'sd-num' }, n))) : el('p', { class: 'sd-empty' }, 'No networks.'));
         } catch (error) {
             if (mine === ticket) {
-                current.replaceChildren(el('p', { class: 'mg-status error' }, `Could not read memberships: ${errorText(error)}`));
+                current.replaceChildren(el('p', { class: 'mg-status sd-meta', dataset: { tone: 'danger' } }, `Could not read memberships: ${errorText(error)}`));
             }
         }
         sync();
@@ -1439,7 +1458,7 @@ async function removeObjects(targets) {
     }
     let stop = false;
     const results = [];
-    const progress = el('p', { class: 'mg-status busy', role: 'status', 'aria-live': 'polite' });
+    const progress = el('p', { class: 'mg-status busy sd-meta', dataset: { tone: 'pending' }, role: 'status', 'aria-live': 'polite' });
     const holder = el('div', {});
     const dialog = openDialog({ title: 'Removing', tone: 'pink', body: [progress, holder] });
     const halt = button('Stop after current', () => {
@@ -1496,7 +1515,7 @@ async function saveImage(name) {
 }
 
 async function openObject(kind, name) {
-    const holder = el('div', {}, el('p', { class: 'mg-status busy' }, 'Reading…'));
+    const holder = el('div', {}, el('p', { class: 'mg-status busy sd-meta', dataset: { tone: 'pending' } }, 'Reading…'));
     const dialog = openDialog({ title: `Inspect ${kind} ${name}`, wide: true, body: holder });
     append(dialog.foot, [
         kind === 'network' ? button('Membership…', () => openMembership({ network: name })) : null,
@@ -1514,13 +1533,13 @@ async function openObject(kind, name) {
             el('p', { class: 'hint' }, 'Environment and credential-like values are masked.'),
             jsonBlock(raw, `Raw ${kind} JSON`));
     } catch (error) {
-        holder.replaceChildren(el('p', { class: 'mg-status error' }, `Could not inspect ${kind} ${name}: ${errorText(error)}`));
+        holder.replaceChildren(el('p', { class: 'mg-status sd-meta', dataset: { tone: 'danger' } }, `Could not inspect ${kind} ${name}: ${errorText(error)}`));
     }
 }
 
 function openBackup(volume) {
     const stopped = containers.filter((c) => !running(c)).sort((a, b) => a.title.localeCompare(b.title));
-    const containerSelect = el('select', { class: 'field mg-grow' },
+    const containerSelect = el('select', { class: 'mg-grow' },
         new Option(stopped.length ? 'Choose a stopped container' : 'No stopped containers', ''),
         stopped.map((c) => new Option(`${c.title} (${c.state})`, c.name)));
     const mountInfo = el('div', {});
@@ -1533,7 +1552,7 @@ function openBackup(volume) {
         title: `Back up volume ${volume}`,
         body: [
             el('p', {}, 'Copies the volume\'s files out through an existing, stopped container that already mounts it. No helper container is created.'),
-            el('p', { class: 'mg-warning' }, 'Running containers are excluded, and live database backups are refused: stop the database first so its files are consistent.'),
+            el('p', { class: 'sd-note', dataset: { tone: 'warning' } }, 'Running containers are excluded, and live database backups are refused: stop the database first so its files are consistent.'),
             el('div', { class: 'mg-form' }, field('Container', containerSelect, 'only stopped containers are listed')),
             mountInfo,
             el('div', { class: 'mg-row-actions' }, button('Choose destination folder…', () => pick()), destination),
@@ -1552,7 +1571,7 @@ function openBackup(volume) {
             mountInfo.replaceChildren();
             return;
         }
-        mountInfo.replaceChildren(el('p', { class: 'mg-status busy' }, 'Checking the container\'s mounts…'));
+        mountInfo.replaceChildren(el('p', { class: 'mg-status busy sd-meta', dataset: { tone: 'pending' } }, 'Checking the container\'s mounts…'));
         try {
             const data = await manage('inspect', { name: containerSelect.value });
             if (mine !== ticket) {
@@ -1561,16 +1580,16 @@ function openBackup(volume) {
             const mounts = Array.isArray(data?.mounts) ? data.mounts : data?.raw?.Mounts ?? [];
             const mount = mounts.find((m) => m?.Name === volume || (m?.Type === 'volume' && String(m?.Source ?? '').includes(volume)));
             if (data?.raw?.State?.Running) {
-                mountInfo.replaceChildren(el('p', { class: 'mg-status error' }, 'This container is running now. Stop it first.'));
+                mountInfo.replaceChildren(el('p', { class: 'mg-status sd-meta', dataset: { tone: 'danger' } }, 'This container is running now. Stop it first.'));
             } else if (!mount) {
-                mountInfo.replaceChildren(el('p', { class: 'mg-status error' }, `${containerSelect.value} does not mount ${volume}.`));
+                mountInfo.replaceChildren(el('p', { class: 'mg-status sd-meta', dataset: { tone: 'danger' } }, `${containerSelect.value} does not mount ${volume}.`));
             } else {
                 containerPath = mount.Destination ?? mount.Target ?? '';
-                mountInfo.replaceChildren(facts([['Mounted at', el('span', { class: 'num' }, containerPath)], ['Mode', mount.RW === false ? 'read-only' : mount.Mode || 'read-write']]));
+                mountInfo.replaceChildren(facts([['Mounted at', el('span', { class: 'sd-num' }, containerPath)], ['Mode', mount.RW === false ? 'read-only' : mount.Mode || 'read-write']]));
             }
         } catch (error) {
             if (mine === ticket) {
-                mountInfo.replaceChildren(el('p', { class: 'mg-status error' }, `Could not inspect: ${errorText(error)}`));
+                mountInfo.replaceChildren(el('p', { class: 'mg-status sd-meta', dataset: { tone: 'danger' } }, `Could not inspect: ${errorText(error)}`));
             }
         }
         sync();
@@ -1621,12 +1640,12 @@ const resources = {
         intro: 'Images already in this session. Save one to an archive, inspect it, or remove it if nothing uses it. Pull, build, tag, push and import are not offered.',
         id: imageName,
         columns: [
-            { label: 'Repository', value: (r) => r.Repository, class: 'num' },
-            { label: 'Tag', value: (r) => r.Tag, class: 'num' },
+            { label: 'Repository', value: (r) => r.Repository, class: 'sd-num' },
+            { label: 'Tag', value: (r) => r.Tag, class: 'sd-num' },
             { label: 'ID', value: (r) => r.ID ?? r.Id, class: 'num mg-dim' },
-            { label: 'Size', value: (r) => r.Size, class: 'num' },
+            { label: 'Size', value: (r) => r.Size, class: 'sd-num' },
             { label: 'Created', value: (r) => r.CreatedSince ?? r.CreatedAt },
-            { label: 'Containers', value: (r) => r.Containers, class: 'num' },
+            { label: 'Containers', value: (r) => r.Containers, class: 'sd-num' },
         ],
         keys: ['Repository', 'ID'],
         actions: (name) => [button('Save…', () => saveImage(name), 'secondary', { 'aria-label': `Save image ${name}` })],
@@ -1636,11 +1655,11 @@ const resources = {
         intro: 'Volumes already in this session. Back one up through a stopped container that mounts it, inspect it, or remove it if unused.',
         id: (r) => r.Name ?? r.name ?? '',
         columns: [
-            { label: 'Name', value: (r) => el('span', { title: r.Name }, shortId(r.Name)), class: 'num' },
+            { label: 'Name', value: (r) => el('span', { title: r.Name }, shortId(r.Name)), class: 'sd-num' },
             { label: 'Driver', value: (r) => r.Driver },
             { label: 'Scope', value: (r) => r.Scope },
             { label: 'Kind', value: (r) => (String(r.Labels ?? '').includes('com.docker.volume.anonymous') ? 'anonymous' : 'named') },
-            { label: 'Mountpoint', value: (r) => el('span', { class: 'mg-output', title: r.Mountpoint }, text(r.Mountpoint)), class: 'num mg-dim' },
+            { label: 'Mountpoint', value: (r) => el('span', { class: 'mg-output sd-code', title: r.Mountpoint }, text(r.Mountpoint)), class: 'num mg-dim' },
         ],
         keys: ['Name'],
         actions: (name) => [button('Back up…', () => openBackup(name), 'secondary', { 'aria-label': `Back up volume ${name}` })],
@@ -1650,7 +1669,7 @@ const resources = {
         intro: 'Networks already in this session. Change which containers belong to one, inspect it, or remove an unused one. New networks are not created here.',
         id: (r) => r.Name ?? r.name ?? '',
         columns: [
-            { label: 'Name', value: (r) => r.Name, class: 'num' },
+            { label: 'Name', value: (r) => r.Name, class: 'sd-num' },
             { label: 'Driver', value: (r) => r.Driver },
             { label: 'ID', value: (r) => r.ID ?? r.Id, class: 'num mg-dim' },
             { label: 'Scope', value: (r) => r.Scope },
@@ -1678,7 +1697,7 @@ const inventories = new Map();
 function resourceTab(kind) {
     const spec = resources[kind];
     const state = { items: null, ticket: 0 };
-    const filter = el('input', { type: 'search', class: 'field mg-search', placeholder: `Filter ${spec.label.toLowerCase()}`, spellcheck: false, 'aria-label': `Filter ${spec.label.toLowerCase()}` });
+    const filter = el('input', { type: 'search', class: 'mg-search', placeholder: `Filter ${spec.label.toLowerCase()}`, spellcheck: false, 'aria-label': `Filter ${spec.label.toLowerCase()}` });
     const count = el('span', { class: 'hint' });
     const statusNode = statusLine();
     const holder = el('div', {});
@@ -1712,7 +1731,7 @@ function resourceTab(kind) {
         const rows = state.items.filter((row) => !query || JSON.stringify(row).toLowerCase().includes(query));
         count.textContent = query ? `${rows.length} of ${state.items.length}` : plural(state.items.length, kind);
         if (rows.length === 0) {
-            holder.replaceChildren(el('p', { class: 'empty' }, state.items.length ? 'Nothing matches this filter.' : `No ${spec.label.toLowerCase()} in this session.`));
+            holder.replaceChildren(el('p', { class: 'sd-empty' }, state.items.length ? 'Nothing matches this filter.' : `No ${spec.label.toLowerCase()} in this session.`));
             return;
         }
         holder.replaceChildren(table(rows, [...columnsFor(spec, rows), {
@@ -1758,18 +1777,19 @@ let cleanupItems = [];
 const cleanupRemove = button('Remove selected…', () => cleanup(), 'danger', { disabled: true });
 
 append(storagePanel, [
-    el('section', { class: 'card tone-violet' },
-        el('div', { class: 'section-head' }, el('h2', {}, el('span', { class: 'diamond', 'aria-hidden': 'true' }, '◇'), 'WSLc storage'),
+    el('section', { class: 'sd-card', dataset: { tone: 'extra' } },
+        el('div', { class: 'sd-card-head' }, el('h2', {}, el('span', { class: 'sd-dot', 'aria-hidden': 'true' }), 'WSLc storage'),
             button('Refresh', () => loadStorage())),
-        storageStatus, storageHolder),
-    el('section', { class: 'card tone-pink' },
-        el('div', { class: 'section-head' }, el('h2', {}, el('span', { class: 'diamond', 'aria-hidden': 'true' }, '◇'), 'Cleanup'),
+        el('div', { class: 'sd-card-body' }, storageStatus, storageHolder)),
+    el('section', { class: 'sd-card', dataset: { tone: 'danger' } },
+        el('div', { class: 'sd-card-head' }, el('h2', {}, el('span', { class: 'sd-dot', 'aria-hidden': 'true' }), 'Cleanup'),
             el('div', { class: 'mg-row-actions' }, button('Tick unused images', () => tickUnused()), button('Clear', () => {
                 cleanupPicked.clear();
                 renderCleanup();
             }), cleanupRemove)),
-        el('p', { class: 'hint' }, 'Nothing is pruned automatically. Tick exactly what to remove; the confirmation lists every object, and WSLc refuses anything still in use.'),
-        cleanupStatus, cleanupHolder),
+        el('div', { class: 'sd-card-body' },
+            el('p', { class: 'hint' }, 'Nothing is pruned automatically. Tick exactly what to remove; the confirmation lists every object, and WSLc refuses anything still in use.'),
+            cleanupStatus, cleanupHolder)),
 ]);
 
 async function loadStorage() {
@@ -1782,19 +1802,18 @@ async function loadStorage() {
         const files = [...(data?.files ?? [])].sort((a, b) => (b.bytes ?? 0) - (a.bytes ?? 0));
         storageHolder.replaceChildren(
             facts([
-                ['Storage root (all known sessions)', el('span', { class: 'num' }, text(data?.storageRoot))],
-                ['Active session folder', el('span', { class: 'num' }, data?.sessionFolder || 'Not reported by WSLc; a custom location may be in use.')],
+                ['Storage root (all known sessions)', el('span', { class: 'sd-num' }, text(data?.storageRoot))],
+                ['Active session folder', el('span', { class: 'sd-num' }, data?.sessionFolder || 'Not reported by WSLc; a custom location may be in use.')],
                 ['Root drive', data?.totalBytes ? `${bytes(data.freeBytes)} free of ${bytes(data.totalBytes)}` : 'not reported'],
             ]),
-            data?.totalBytes ? el('div', { class: 'mg-meter', role: 'meter', 'aria-label': 'Drive space used', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': Math.round(share) },
-                el('span', { style: `width: ${share.toFixed(1)}%` })) : null,
+            data?.totalBytes ? el('div', { class: 'sd-progress', role: 'meter', 'aria-label': 'Drive space used', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': Math.round(share), style: `--value: ${Math.round(share)}` }) : null,
             files.length
                 ? table(files, [
-                    { label: 'File', value: (f) => el('span', { class: 'mg-output' }, f.path), class: 'num' },
-                    { label: 'Size', value: (f) => (f.bytes == null ? 'unavailable' : bytes(f.bytes)), class: 'num' },
+                    { label: 'File', value: (f) => el('span', { class: 'mg-output sd-code' }, f.path), class: 'sd-num' },
+                    { label: 'Size', value: (f) => (f.bytes == null ? 'unavailable' : bytes(f.bytes)), class: 'sd-num' },
                 ], { caption: 'Storage files in all known session folders' })
-                : el('p', { class: 'empty' }, 'No WSLc storage files were found at the known locations.'),
-            data?.note ? el('p', { class: 'mg-note' }, data.note) : null);
+                : el('p', { class: 'sd-empty' }, 'No WSLc storage files were found at the known locations.'),
+            data?.note ? el('p', { class: 'sd-note', dataset: { tone: 'accent' } }, data.note) : null);
         status(storageStatus, '', `Read at ${clock(Date.now())}.`);
     } catch (error) {
         status(storageStatus, 'error', `Could not read storage: ${errorText(error)}`);
@@ -1842,9 +1861,9 @@ function renderCleanup() {
                 cleanupRemove.textContent = cleanupPicked.size ? `Remove ${cleanupPicked.size} selected…` : 'Remove selected…';
             });
             return el('li', {}, el('label', { class: 'mg-inline', title: item.name }, box, badge(item.kind, item.unused ? 'amber' : ''),
-                el('span', { class: 'num' }, item.label), el('span', { class: 'hint' }, item.notes.join(' · '))));
+                el('span', { class: 'sd-num' }, item.label), el('span', { class: 'hint' }, item.notes.join(' · '))));
         }))
-        : el('p', { class: 'empty' }, 'No images, volumes or custom networks to clean up.'));
+        : el('p', { class: 'sd-empty' }, 'No images, volumes or custom networks to clean up.'));
     cleanupRemove.disabled = cleanupPicked.size === 0;
     cleanupRemove.textContent = cleanupPicked.size ? `Remove ${cleanupPicked.size} selected…` : 'Remove selected…';
 }
@@ -1891,10 +1910,10 @@ const runtimeHolder = el('div', {});
 const sessionsHolder = el('div', {});
 const infoHolder = el('div', {});
 const terminateHolder = el('div', {});
-const eventsSince = el('select', { class: 'field', 'aria-label': 'Events since' },
+const eventsSince = el('select', { 'aria-label': 'Events since' },
     new Option('Last 15 min', '900'), new Option('Last hour', '3600'), new Option('Last 6 h', '21600'), new Option('Last 24 h', '86400'));
 eventsSince.value = '3600';
-const eventsFilter = el('input', { type: 'search', class: 'field mg-search', placeholder: 'Filter events', spellcheck: false, 'aria-label': 'Filter events' });
+const eventsFilter = el('input', { type: 'search', class: 'mg-search', placeholder: 'Filter events', spellcheck: false, 'aria-label': 'Filter events' });
 const eventsStatus = statusLine();
 const eventsList = el('div', { class: 'mg-timeline', role: 'list', 'aria-label': 'Runtime event timeline' });
 const eventsLoad = button('Load', () => loadEvents(false));
@@ -1903,24 +1922,25 @@ const eventsNewer = button('Load newer', () => loadEvents(true), 'secondary', { 
 let timeline = [];
 
 append(runtimePanel, [
-    el('section', { class: 'card tone-cyan' },
-        el('div', { class: 'section-head' }, el('h2', {}, el('span', { class: 'diamond', 'aria-hidden': 'true' }, '◇'), 'Runtime and session'),
+    el('section', { class: 'sd-card', dataset: { tone: 'accent' } },
+        el('div', { class: 'sd-card-head' }, el('h2', {}, el('span', { class: 'sd-dot', 'aria-hidden': 'true' }), 'Runtime and session'),
             el('div', { class: 'mg-row-actions' }, button('Refresh', () => loadRuntime()), button('Open runtime settings…', () => openSettings()))),
-        runtimeStatus, resumeMonitoring, runtimeHolder),
-    el('section', { class: 'card' },
-        el('div', { class: 'section-head' }, el('h2', {}, el('span', { class: 'diamond', 'aria-hidden': 'true' }, '◇'), 'Events')),
-        el('p', { class: 'hint' }, 'Bounded reads of WSLc\'s event stream. A failed read is shown as a gap, so missing time is never mistaken for a quiet period.'),
-        el('div', { class: 'toolbar mg-toolbar' }, eventsSince, eventsLoad, eventsNewer, el('span', { class: 'spacer' }), eventsFilter),
-        eventsStatus, eventsList),
-    el('section', { class: 'card' },
-        el('div', { class: 'section-head' }, el('h2', {}, el('span', { class: 'diamond', 'aria-hidden': 'true' }, '◇'), 'Sessions')),
-        sessionsHolder),
-    el('section', { class: 'card tone-violet' },
-        el('div', { class: 'section-head' }, el('h2', {}, el('span', { class: 'diamond', 'aria-hidden': 'true' }, '◇'), 'System info')),
-        infoHolder),
-    el('section', { class: 'card tone-pink' },
-        el('div', { class: 'section-head' }, el('h2', {}, el('span', { class: 'diamond', 'aria-hidden': 'true' }, '◇'), 'Terminate session')),
-        terminateHolder),
+        el('div', { class: 'sd-card-body' }, runtimeStatus, resumeMonitoring, runtimeHolder)),
+    el('section', { class: 'sd-card' },
+        el('div', { class: 'sd-card-head' }, el('h2', {}, el('span', { class: 'sd-dot', 'aria-hidden': 'true' }), 'Events')),
+        el('div', { class: 'sd-card-body' },
+            el('p', { class: 'hint' }, 'Bounded reads of WSLc\'s event stream. A failed read is shown as a gap, so missing time is never mistaken for a quiet period.'),
+            el('div', { class: 'toolbar mg-toolbar' }, eventsSince, eventsLoad, eventsNewer, el('span', { class: 'spacer' }), eventsFilter),
+            eventsStatus, eventsList)),
+    el('section', { class: 'sd-card' },
+        el('div', { class: 'sd-card-head' }, el('h2', {}, el('span', { class: 'sd-dot', 'aria-hidden': 'true' }), 'Sessions')),
+        el('div', { class: 'sd-card-body' }, sessionsHolder)),
+    el('section', { class: 'sd-card', dataset: { tone: 'extra' } },
+        el('div', { class: 'sd-card-head' }, el('h2', {}, el('span', { class: 'sd-dot', 'aria-hidden': 'true' }), 'System info')),
+        el('div', { class: 'sd-card-body' }, infoHolder)),
+    el('section', { class: 'sd-card', dataset: { tone: 'danger' } },
+        el('div', { class: 'sd-card-head' }, el('h2', {}, el('span', { class: 'sd-dot', 'aria-hidden': 'true' }), 'Terminate session')),
+        el('div', { class: 'sd-card-body' }, terminateHolder)),
 ]);
 eventsFilter.addEventListener('input', () => renderEvents());
 
@@ -1952,9 +1972,9 @@ async function loadRuntime() {
     const active = preferencesCache?.activeSession;
     runtimeHolder.replaceChildren(
         facts([
-            ['Watcher targets', active === undefined ? 'unknown' : el('span', { class: 'num' }, sessionLabel(active))],
-            ['WSLc reports', el('span', { class: 'num' }, sessionLabel(session))],
-            ['Settings file', el('span', { class: 'num' }, text(settingsPath))],
+            ['Watcher targets', active === undefined ? 'unknown' : el('span', { class: 'sd-num' }, sessionLabel(active))],
+            ['WSLc reports', el('span', { class: 'sd-num' }, sessionLabel(session))],
+            ['Settings file', el('span', { class: 'sd-num' }, text(settingsPath))],
             ['Version', info?.Client?.Version ?? info?.ServerVersion ?? info?.Version ?? info?.version ?? null],
         ]),
         el('div', { class: 'label mg-sub' }, 'Capabilities of the installed wslc'),
@@ -1964,11 +1984,11 @@ async function loadRuntime() {
             capabilityRow('Compose', capabilities.compose, 'detected, but Watcher does not launch or manage stacks', 'no Compose in this wslc; stacks are not supported')),
         el('p', { class: 'hint' }, 'Open runtime settings opens WSLc\'s YAML in your default editor. Watcher never resets or rewrites it. Changes may need the affected WSLc session restarted.'));
     sessionsHolder.replaceChildren(sessions?.trim()
-        ? el('pre', { class: 'mg-json', tabIndex: 0, 'aria-label': 'Session list' }, sessions.trim())
-        : el('p', { class: 'empty' }, 'WSLc listed no sessions.'));
+        ? el('pre', { class: 'mg-json sd-code', tabIndex: 0, 'aria-label': 'Session list' }, sessions.trim())
+        : el('p', { class: 'sd-empty' }, 'WSLc listed no sessions.'));
     const primitives = isObject(info) ? Object.entries(info).filter(([, v]) => v !== null && typeof v !== 'object') : [];
     infoHolder.replaceChildren(
-        primitives.length ? facts(primitives.map(([k, v]) => [k, String(v)])) : el('p', { class: 'empty' }, 'No system information was reported.'),
+        primitives.length ? facts(primitives.map(([k, v]) => [k, String(v)])) : el('p', { class: 'sd-empty' }, 'No system information was reported.'),
         info != null ? el('details', { class: 'mg-details' }, el('summary', {}, 'Raw info JSON'), jsonBlock(info, 'Raw system info JSON')) : null);
     eventsLoad.disabled = !capabilities.events;
     eventsNewer.disabled = !capabilities.events || timeline.length === 0;
@@ -2000,7 +2020,7 @@ function renderTerminate() {
     const action = button(`Terminate ${active === undefined ? 'session' : sessionLabel(active)}…`, () => terminate(active), 'danger', { disabled: Boolean(blocked) });
     terminateHolder.replaceChildren(
         el('p', {}, 'Stops the WSLc session Watcher monitors, and with it every container running in it. Other sessions are not touched.'),
-        blocked ? el('p', { class: 'mg-warning' }, blocked) : null,
+        blocked ? el('p', { class: 'sd-note', dataset: { tone: 'warning' } }, blocked) : null,
         el('div', { class: 'mg-row-actions' }, action));
 }
 
@@ -2084,7 +2104,7 @@ on('runtime-gap', ({ message }) => {
 
 function renderEvents() {
     if (timeline.length === 0) {
-        eventsList.replaceChildren(el('p', { class: 'empty' }, runtimeCache?.capabilities?.events === false
+        eventsList.replaceChildren(el('p', { class: 'sd-empty' }, runtimeCache?.capabilities?.events === false
             ? 'Events are not available in the installed wslc.'
             : 'Choose a range and press Load. Nothing is read until you ask.'));
         return;
@@ -2105,29 +2125,29 @@ function renderEvents() {
     items.sort((a, b) => b.at - a.at);
     eventsList.replaceChildren(...items.map((item) => {
         if (item.gap) {
-            return el('div', { class: 'mg-event tone-pink', role: 'listitem' },
-                el('span', { class: 'num time' }, clock(item.at)), badge('gap', 'pink'),
-                el('span', { class: 'mg-output' }, item.gap.background
+            return el('div', { class: 'mg-event', dataset: { tone: 'danger' }, role: 'listitem' },
+                el('span', { class: 'time sd-num' }, clock(item.at)), badge('gap', 'pink'),
+                el('span', { class: 'mg-output sd-code' }, item.gap.background
                     ? item.gap.error
                     : `No data from ${day(item.gap.from)} ${clock(item.gap.from)} to ${clock(item.gap.to)}: ${item.gap.error}`));
         }
         if (item.quiet) {
             return el('div', { class: 'mg-event', role: 'listitem' },
-                el('span', { class: 'num time' }, clock(item.at)), badge('quiet'),
+                el('span', { class: 'time sd-num' }, clock(item.at)), badge('quiet'),
                 el('span', { class: 'hint' }, `No events between ${clock(item.quiet.from)} and ${clock(item.quiet.to)}.`));
         }
         const summary = eventSummary(item.row);
-        return el('details', { class: `mg-event tone-${summary.tone}`, role: 'listitem' },
+        return el('details', { class: 'mg-event', dataset: { tone: toneOf(summary.tone) }, role: 'listitem' },
             el('summary', {},
-                el('span', { class: 'num time', title: `${day(item.at)} ${clock(item.at)}` }, clock(item.at)),
+                el('span', { class: 'time sd-num', title: `${day(item.at)} ${clock(item.at)}` }, clock(item.at)),
                 badge(summary.type, summary.tone),
                 el('span', { class: 'mg-check-name' }, summary.action),
-                el('span', { class: 'num' }, summary.who),
-                summary.exit != null ? el('span', { class: String(summary.exit) === '0' ? 'hint' : 'mg-status error' }, `exit code ${summary.exit}`) : null),
+                el('span', { class: 'sd-num' }, summary.who),
+                summary.exit != null && String(summary.exit) !== '0' ? el('span', { class: 'mg-status sd-meta', dataset: { tone: 'danger' } }, `exit code ${summary.exit}`) : null),
             jsonBlock(item.row, 'Raw event JSON'));
     }));
     if (items.length === 0) {
-        eventsList.replaceChildren(el('p', { class: 'empty' }, 'No events match this filter.'));
+        eventsList.replaceChildren(el('p', { class: 'sd-empty' }, 'No events match this filter.'));
     }
 }
 
@@ -2137,7 +2157,7 @@ renderEvents();
 
 const preferencesPanel = addTab('preferences', 'Preferences', { shown: () => preferencesForm || loadPreferences() });
 const preferencesStatus = statusLine();
-const preferencesHolder = el('div', {}, el('p', { class: 'mg-status busy' }, 'Reading preferences…'));
+const preferencesHolder = el('div', {}, el('p', { class: 'mg-status busy sd-meta', dataset: { tone: 'pending' } }, 'Reading preferences…'));
 let preferencesForm = null;
 
 append(preferencesPanel, [preferencesHolder, preferencesStatus]);
@@ -2178,12 +2198,12 @@ function alertEditor(rule, label) {
     const values = { ...alertDefaults, ...(rule ?? {}) };
     const inputs = {};
     const grid = el('div', { class: 'mg-form' }, alertFields.map((f) => {
-        inputs[f.key] = el('input', { type: 'number', class: 'field mg-narrow', min: f.min, max: f.max, step: f.step, value: String(values[f.key]) });
+        inputs[f.key] = el('input', { type: 'number', class: 'mg-narrow', min: f.min, max: f.max, step: f.step, value: String(values[f.key]) });
         return field(f.label, inputs[f.key], f.unit);
     }));
     inputs.notifications = el('input', { type: 'checkbox', checked: Boolean(values.notifications) });
     inputs.muted = el('input', { type: 'checkbox', checked: Boolean(values.muted) });
-    const problem = el('p', { class: 'mg-status error', role: 'alert', hidden: true });
+    const problem = el('p', { class: 'mg-status sd-meta', dataset: { tone: 'danger' }, role: 'alert', hidden: true });
 
     return {
         node: el('fieldset', { class: 'mg-fieldset' }, el('legend', { class: 'label' }, label), grid,
@@ -2205,25 +2225,25 @@ function alertEditor(rule, label) {
 async function loadPreferences() {
     preferencesForm = null;
     status(preferencesStatus, '', '');
-    preferencesHolder.replaceChildren(el('p', { class: 'mg-status busy' }, 'Reading preferences…'));
+    preferencesHolder.replaceChildren(el('p', { class: 'mg-status busy sd-meta', dataset: { tone: 'pending' } }, 'Reading preferences…'));
     try {
         const prefs = await manage('preferences');
         preferencesCache = prefs;
         renderPreferences(prefs);
     } catch (error) {
-        preferencesHolder.replaceChildren(el('p', { class: 'mg-status error' }, `Could not read preferences: ${errorText(error)}`),
+        preferencesHolder.replaceChildren(el('p', { class: 'mg-status sd-meta', dataset: { tone: 'danger' } }, `Could not read preferences: ${errorText(error)}`),
             button('Try again', () => loadPreferences()));
     }
 }
 
 function renderPreferences(prefs) {
-    const session = el('input', { type: 'text', class: 'field mg-grow', value: prefs.session ?? '', placeholder: 'default session', spellcheck: false, autocomplete: 'off' });
+    const session = el('input', { type: 'text', class: 'mg-grow', value: prefs.session ?? '', placeholder: 'default session', spellcheck: false, autocomplete: 'off' });
     const keepRunning = el('input', { type: 'checkbox', checked: Boolean(prefs.keepRunning) });
     const startAtLogin = el('input', { type: 'checkbox', checked: Boolean(prefs.startAtLogin) });
     const general = alertEditor(prefs.alerts, 'Default alert rule');
     const overrides = new Map();
     const overrideHolder = el('div', {});
-    const overridePick = el('select', { class: 'field mg-grow', 'aria-label': 'Container to override' });
+    const overridePick = el('select', { class: 'mg-grow', 'aria-label': 'Container to override' });
 
     const fillPick = () => {
         const names = [...new Set(containers.map((c) => c.name))].filter((name) => !overrides.has(name)).sort();
@@ -2286,24 +2306,27 @@ function renderPreferences(prefs) {
 
     preferencesForm = { fillPick };
     preferencesHolder.replaceChildren(
-        el('section', { class: 'card tone-cyan' },
-            el('div', { class: 'section-head' }, el('h2', {}, el('span', { class: 'diamond', 'aria-hidden': 'true' }, '◇'), 'Session')),
-            el('div', { class: 'mg-form' }, field('WSLc session', session, 'empty uses the default session')),
-            facts([['Active now', el('span', { class: 'num' }, sessionLabel(prefs.activeSession))]]),
-            el('p', { class: 'hint' }, 'Changing the session takes effect after Watcher restarts, so samples from two sessions never mix.')),
-        el('section', { class: 'card' },
-            el('div', { class: 'section-head' }, el('h2', {}, el('span', { class: 'diamond', 'aria-hidden': 'true' }, '◇'), 'Background')),
-            el('div', { class: 'mg-checks-stack' },
-                el('label', { class: 'mg-inline' }, keepRunning, 'Keep monitoring in the tray when the window is closed'),
-                el('label', { class: 'mg-inline' }, startAtLogin, 'Start Watcher when I sign in to Windows')),
-            el('p', { class: 'hint' }, 'Both are off unless you turn them on.')),
-        el('section', { class: 'card tone-amber' },
-            el('div', { class: 'section-head' }, el('h2', {}, el('span', { class: 'diamond', 'aria-hidden': 'true' }, '◇'), 'Alerts')),
-            general.node,
-            el('div', { class: 'label mg-sub' }, 'Per-container overrides'),
-            el('p', { class: 'hint' }, 'An override replaces the default rule for one container.'),
-            overrideHolder,
-            el('div', { class: 'mg-row-actions' }, overridePick, button('Add override', () => overridePick.value && addOverride(overridePick.value)))),
+        el('section', { class: 'sd-card', dataset: { tone: 'accent' } },
+            el('div', { class: 'sd-card-head' }, el('h2', {}, el('span', { class: 'sd-dot', 'aria-hidden': 'true' }), 'Session')),
+            el('div', { class: 'sd-card-body' },
+                el('div', { class: 'mg-form' }, field('WSLc session', session, 'empty uses the default session')),
+                facts([['Active now', el('span', { class: 'sd-num' }, sessionLabel(prefs.activeSession))]]),
+                el('p', { class: 'hint' }, 'Changing the session takes effect after Watcher restarts, so samples from two sessions never mix.'))),
+        el('section', { class: 'sd-card' },
+            el('div', { class: 'sd-card-head' }, el('h2', {}, el('span', { class: 'sd-dot', 'aria-hidden': 'true' }), 'Background')),
+            el('div', { class: 'sd-card-body' },
+                el('div', { class: 'mg-checks-stack' },
+                    el('label', { class: 'mg-inline' }, keepRunning, 'Keep monitoring in the tray when the window is closed'),
+                    el('label', { class: 'mg-inline' }, startAtLogin, 'Start Watcher when I sign in to Windows')),
+                el('p', { class: 'hint' }, 'Both are off unless you turn them on.'))),
+        el('section', { class: 'sd-card', dataset: { tone: 'pending' } },
+            el('div', { class: 'sd-card-head' }, el('h2', {}, el('span', { class: 'sd-dot', 'aria-hidden': 'true' }), 'Alerts')),
+            el('div', { class: 'sd-card-body' },
+                general.node,
+                el('div', { class: 'label mg-sub' }, 'Per-container overrides'),
+                el('p', { class: 'hint' }, 'An override replaces the default rule for one container.'),
+                overrideHolder,
+                el('div', { class: 'mg-row-actions' }, overridePick, button('Add override', () => overridePick.value && addOverride(overridePick.value))))),
         el('div', { class: 'mg-row-actions' }, save, button('Discard changes', () => loadPreferences())));
 }
 
@@ -2336,18 +2359,18 @@ const logsPage = page('logs', 'Logs',
     'Combined, timestamped logs from the containers you pick. Each read is a bounded snapshot; Follow polls only while this page is open.',
     followState);
 const picker = el('div', { class: 'mg-picker', role: 'group', 'aria-label': 'Containers to read logs from' });
-const pickerEmpty = el('p', { class: 'empty' }, 'Waiting for the first snapshot from the monitor…');
-const tail = el('input', { type: 'number', class: 'field mg-narrow', min: 1, max: maxLines, step: 1, value: '200' });
-const since = el('input', { type: 'datetime-local', class: 'field', step: 1 });
-const until = el('input', { type: 'datetime-local', class: 'field', step: 1 });
-const logSearch = el('input', { type: 'search', class: 'field mg-search', placeholder: 'Search lines', spellcheck: false, 'aria-label': 'Search log lines' });
+const pickerEmpty = el('p', { class: 'sd-empty' }, 'Waiting for the first snapshot from the monitor…');
+const tail = el('input', { type: 'number', class: 'mg-narrow', min: 1, max: maxLines, step: 1, value: '200' });
+const since = el('input', { type: 'datetime-local', step: 1 });
+const until = el('input', { type: 'datetime-local', step: 1 });
+const logSearch = el('input', { type: 'search', class: 'mg-search', placeholder: 'Search lines', spellcheck: false, 'aria-label': 'Search log lines' });
 const fetchButton = button('Fetch', () => startLogs(false), 'primary');
 const followButton = button('Follow', () => (following ? stopFollowing() : startLogs(true)), 'secondary', { 'aria-pressed': 'false' });
 const pauseButton = button('Pause', () => setPaused(!paused), 'secondary', { 'aria-pressed': 'false', disabled: true });
 const logsCancel = button('Cancel', () => logsOperation && cancelOperation(logsOperation), 'secondary', { hidden: true, 'aria-label': 'Cancel the running log read' });
 const logsStatus = statusLine();
 const logsSummary = el('p', { class: 'hint mg-log-summary', role: 'status', 'aria-live': 'polite' });
-const logView = el('div', { class: 'mg-log', role: 'log', 'aria-label': 'Combined log lines', tabIndex: 0 });
+const logView = el('div', { class: 'mg-log sd-code', role: 'log', 'aria-label': 'Combined log lines', tabIndex: 0 });
 
 append(logsPage, [
     el('div', { class: 'toolbar mg-toolbar' },
@@ -2390,13 +2413,17 @@ function renderPicker() {
                 box.checked ? picked.add(name) : picked.delete(name);
                 renderPicker();
             });
-            pickerItems.set(name, el('label', { class: 'mg-pick' }, box, el('span', { class: 'marker' }), el('span', { class: 'name' })));
+            pickerItems.set(name, el('label', { class: 'mg-pick sd-chip' }, box, el('span', { class: 'marker sd-dot' }), el('span', { class: 'name' })));
         }
         const item = pickerItems.get(name);
         const c = containerByName(name);
         item.querySelector('input').checked = picked.has(name);
-        item.classList.toggle('on', picked.has(name));
-        item.classList.toggle('running', Boolean(c && running(c)));
+        item.setAttribute('aria-pressed', String(picked.has(name)));
+        if (c && running(c)) {
+            item.dataset.tone = 'success';
+        } else {
+            delete item.dataset.tone;
+        }
         item.title = c ? `${name} · ${c.state}` : `${name} · not in the current snapshot`;
         setText(item.querySelector('.name'), c ? c.title : `${name} (not listed)`);
         if (picker.children[index] !== item) {
@@ -2491,7 +2518,7 @@ function renderLogs(force = false) {
     const shown = shownLines();
     const order = [...picked];
     if (shown.length === 0) {
-        logView.replaceChildren(el('p', { class: 'empty mg-log-empty' }, lines.length
+        logView.replaceChildren(el('p', { class: 'sd-empty mg-log-empty' }, lines.length
             ? 'No line matches this search.'
             : picked.size ? 'No lines yet. Fetch reads a snapshot; Follow keeps reading while this page is open.' : 'Pick one or more containers, then Fetch or Follow.'));
     } else {
@@ -2588,7 +2615,11 @@ function syncFollow() {
     pauseButton.textContent = paused ? 'Resume' : 'Pause';
     pauseButton.setAttribute('aria-pressed', String(paused));
     until.disabled = following;
-    followState.classList.toggle('offline', !following || paused);
+    if (!following || paused) {
+        followState.dataset.tone = 'pending';
+    } else {
+        delete followState.dataset.tone;
+    }
     followState.lastElementChild.textContent = !following ? 'Not following' : paused ? 'Paused' : 'Following';
 }
 

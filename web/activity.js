@@ -35,7 +35,7 @@ function matches(event) {
 }
 
 function syncChips() {
-    document.querySelectorAll('#activity-groups .chip').forEach((chip) => chip.classList.toggle('on', active.has(chip.dataset.group)));
+    document.querySelectorAll('#activity-groups .chip').forEach((chip) => chip.setAttribute('aria-pressed', String(active.has(chip.dataset.group))));
 }
 
 document.querySelectorAll('#activity-groups .chip').forEach((chip) => chip.addEventListener('click', () => {
@@ -142,13 +142,14 @@ function dayLabel(at) {
 
 function row(event) {
     const article = document.createElement('article');
-    article.className = `event tone-${tone(event)}`;
+    article.className = 'event';
+    article.dataset.tone = tone(event);
     article.classList.toggle('expanded', expanded.has(event.id));
     article.innerHTML = `
         <div class="event-head">
-            <span class="time num"></span><span><span class="badge"></span></span><span class="who"></span><span class="summary"></span>
+            <span class="time sd-num"></span><span><span class="badge sd-badge"></span></span><span class="who"></span><span class="summary"></span>
             <span class="chev">${event.detail || event.container ? chevron : ''}</span>
-        </div>${event.detail ? '<pre class="detail"></pre>' : ''}`;
+        </div>${event.detail ? '<pre class="detail sd-code"></pre>' : ''}`;
     article.querySelector('.time').textContent = clock(event.at);
     article.querySelector('.badge').textContent = event.kind;
     article.querySelector('.who').textContent = event.title ?? event.container ?? '—';
@@ -161,13 +162,13 @@ function row(event) {
         const actions = document.createElement('div');
         actions.className = 'detail event-tools';
         const logs = document.createElement('button');
-        logs.className = 'btn btn-secondary';
+        logs.className = 'sd-btn';
         logs.textContent = 'Logs around this event';
         logs.addEventListener('click', () => window.dispatchEvent(new CustomEvent('watcher:logs', {
             detail: { name: event.container, since: new Date(event.at - 120_000).toISOString(), until: new Date(event.at + 120_000).toISOString() },
         })));
         const inspect = document.createElement('button');
-        inspect.className = 'btn btn-secondary';
+        inspect.className = 'sd-btn';
         inspect.textContent = 'Inspect container';
         inspect.addEventListener('click', () => window.dispatchEvent(new CustomEvent('watcher:inspect', { detail: { name: event.container } })));
         actions.append(logs, inspect);

@@ -1,6 +1,13 @@
 // Shared by every page: the host bridge, window chrome, the router and formatters. Pages import from here
 // and register themselves; this module never imports a page.
 
+// Window control buttons speak the library's data-sd-window contract; the
+// sd:window event is bridged to the host like any other action.
+import { initWindow, onWindowClick } from './vendor/signal/js/window.js';
+initWindow();
+document.addEventListener('click', onWindowClick);
+document.addEventListener('sd:window', ({ detail }) => post({ type: detail.action }));
+
 const host = window.chrome.webview;
 export const post = (message) => host.postMessage(message);
 export const $ = (id) => document.getElementById(id);
@@ -57,9 +64,6 @@ document.addEventListener('mousedown', (event) => {
     }
 });
 
-document.querySelectorAll('[data-window]').forEach((button) =>
-    button.addEventListener('click', () => post({ type: button.dataset.window })));
-
 // ---------- Router ----------
 
 const pages = new Map();
@@ -85,7 +89,7 @@ function route() {
     current = name;
     localStorage.setItem('page', name);
     document.querySelectorAll('section[data-page]').forEach((section) => (section.hidden = section.dataset.page !== name));
-    document.querySelectorAll('.rail-item[data-page]').forEach((item) => item.classList.toggle('current', item.dataset.page === name));
+    document.querySelectorAll('.sd-rail-item[data-page]').forEach((item) => item.toggleAttribute('aria-current', item.dataset.page === name));
     $('crumb').textContent = pages.get(name).title;
     pages.get(name).shown();
 }

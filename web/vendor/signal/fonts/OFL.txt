@@ -1,4 +1,7 @@
-Copyright 2010, 2012 Adobe Systems Incorporated (http://www.adobe.com/), with Reserved Font Name 'Source'. All Rights Reserved. Source is a trademark of Adobe Systems Incorporated in the United States and/or other countries.
+Source Code Pro upright (400, 600): © 2023 Adobe. Italic (400, 600, Latin subset): from the @fontsource/source-code-pro package, © Adobe / Google Inc.
+Both are licensed under the SIL Open Font License, Version 1.1 below.
+
+Source Code Pro: © 2023 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'. All Rights Reserved. Source is a trademark of Adobe in the United States and/or other countries.
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 
