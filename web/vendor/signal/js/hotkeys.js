@@ -35,21 +35,55 @@ function normalize(combo) {
   return [...order.filter((m) => parts.includes(m)), key].join("+");
 }
 
-export function hotkeys(map, { target = document } = {}) {
-  const table = new Map(Object.entries(map).map(([combo, fn]) => [normalize(combo), fn]));
+function modalOf(target) {
+  const doc = target.ownerDocument || document;
+  return target.closest?.("dialog:modal") || doc.querySelector("dialog:modal");
+}
+
+export function hotkeys(map, { target = document, sequenceTimeout = 900, enabled = true, repeat = true } = {}) {
+  const table = new Map(Object.entries(map).map(([combo, fn]) => [combo.trim().split(/\s+/).map(normalize).join(" "), fn]));
+  let pending = "";
+  let timer;
+  let context;
+  const reset = () => { pending = ""; clearTimeout(timer); };
   const handler = (event) => {
+    const modal = modalOf(event.target);
+    if (event.defaultPrevented || event.isComposing || !(typeof enabled === "function" ? enabled(event) : enabled) ||
+      (modal && !(target instanceof Node && modal.contains(target)))) {
+      reset();
+      return;
+    }
+    if (context !== modal) reset();
+    context = modal;
+    if (["Shift", "Control", "Alt", "Meta", "AltGraph"].includes(event.key)) return;
     const combo = keyOf(event);
-    if (typing(event.target) && !combo.startsWith("mod+") && combo !== "escape") return;
+    if (event.repeat && (!repeat || pending || !table.has(combo))) { reset(); return; }
+    if (typing(event.target) && !combo.startsWith("mod+") && combo !== "escape") { reset(); return; }
     // Enter and Space belong to whatever control has focus.
-    if ((combo === "enter" || combo === "space") && event.target.closest?.(CONTROL)) return;
-    const fn = table.get(combo);
+    if ((combo === "enter" || combo === "space") && event.target.closest?.(CONTROL)) { reset(); return; }
+    let sequence = pending ? `${pending} ${combo}` : combo;
+    if (!table.has(sequence) && ![...table.keys()].some((key) => key.startsWith(`${sequence} `))) sequence = combo;
+    const fn = table.get(sequence);
+    reset();
     if (fn) {
       event.preventDefault();
       fn(event);
+    } else if ([...table.keys()].some((key) => key.startsWith(`${sequence} `))) {
+      event.preventDefault();
+      pending = sequence;
+      timer = setTimeout(reset, sequenceTimeout);
     }
   };
   target.addEventListener("keydown", handler);
-  return () => target.removeEventListener("keydown", handler);
+  const doc = target.ownerDocument || document;
+  for (const type of ["focusin", "pointerdown", "visibilitychange"]) doc.addEventListener(type, reset, true);
+  window.addEventListener("blur", reset);
+  return () => {
+    reset();
+    target.removeEventListener("keydown", handler);
+    for (const type of ["focusin", "pointerdown", "visibilitychange"]) doc.removeEventListener(type, reset, true);
+    window.removeEventListener("blur", reset);
+  };
 }
 
 export function onKeyAttr(event) {
@@ -59,6 +93,9 @@ export function onKeyAttr(event) {
   for (const el of document.querySelectorAll("[data-sd-key]")) {
     if (normalize(el.dataset.sdKey) !== combo) continue;
     if (el.disabled || el.closest("[hidden], [inert]") || !el.getClientRects().length) continue;
+    const modal = modalOf(event.target);
+    if (modal && !modal.contains(el)) continue;
+    if ((combo === "enter" || combo === "space") && event.target.closest?.(CONTROL)) return;
     event.preventDefault();
     el.click();
     return;

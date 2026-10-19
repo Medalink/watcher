@@ -16,6 +16,7 @@ public static class ActivityKind
     public const string MemoryHigh = "memory-high";
     public const string MemoryNormal = "memory-normal";
     public const string Action = "action";
+    public const string Limit = "limit";
     public const string MonitorStarted = "monitor-started";
     public const string MonitorStopped = "monitor-stopped";
     public const string WslcOffline = "wslc-offline";

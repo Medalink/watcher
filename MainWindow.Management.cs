@@ -12,6 +12,7 @@ namespace Watcher;
 public partial class MainWindow
 {
     private Preferences _preferences = Preferences.Startup;
+    private readonly LimitEnforcer _limits = new();
     private readonly Dictionary<string, CancellationTokenSource> _operations = [];
     private readonly Dictionary<string, (string Operation, JsonElement Parameters)> _actionRequests = [];
     private readonly Dictionary<Guid, ContainerRequest> _lifecycle = [];
@@ -65,7 +66,7 @@ public partial class MainWindow
         Send(new { type = "operation", id, operation, running = true });
         try
         {
-            if (_sessionPaused && operation is not ("preferences" or "save-preferences" or "pick-path" or "open-runtime-settings" or "session-resume"))
+            if (_sessionPaused && operation is not ("preferences" or "save-preferences" or "limits" or "save-limits" or "pick-path" or "open-runtime-settings" or "session-resume"))
                 throw new InvalidOperationException("Monitoring is paused after a session termination request. Resume monitoring in Manage → Runtime before contacting WSLc again.");
             object? result = operation switch
             {
@@ -73,6 +74,8 @@ public partial class MainWindow
                 "terminal" => OpenTerminal(parameters),
                 "preferences" => PreferenceView(),
                 "save-preferences" => SavePreferences(parameters),
+                "limits" => LimitsView(),
+                "save-limits" => SaveLimits(parameters),
                 "open-runtime-settings" => OpenRuntimeSettings(),
                 "session-terminate" => await TerminateSessionAsync(parameters, cancellation.Token),
                 "session-resume" => ResumeSession(),
@@ -130,7 +133,9 @@ public partial class MainWindow
 
     private object SavePreferences(JsonElement parameters)
     {
-        var next = parameters.Deserialize<Preferences>(Json)?.Validated() ?? throw new ArgumentException("Preferences are required.");
+        var page = parameters.Deserialize<Preferences>(Json) ?? throw new ArgumentException("Preferences are required.");
+        // The Resources page owns the limits, so this form never carries them.
+        var next = page.Validated() with { Limits = _preferences.Limits, ContainerLimits = _preferences.ContainerLimits };
         if (next.KeepRunning || next.EffectiveAlerts.Notifications) EnsureTray();
         if ((next.KeepRunning || next.EffectiveAlerts.Notifications) && _tray is null) throw new InvalidOperationException("The notification area is unavailable. Background mode was not enabled.");
         next.Save();
@@ -143,10 +148,47 @@ public partial class MainWindow
             _preferences.Save();
             throw;
         }
-        _preferences = next;
-        _activity.Configure(next);
+        Apply(next);
         var restart = !string.Equals(next.Session, Wslc.Session, StringComparison.Ordinal);
         return new { message = restart ? "Saved. Restart Watcher to switch sessions. Current monitoring and actions keep their original target." : "Preferences saved.", restartRequired = restart };
+    }
+
+    private sealed record LimitsPage(ResourceLimits? Limits, Dictionary<string, ResourceLimits>? ContainerLimits);
+
+    private object LimitsView() => new
+    {
+        limits = _preferences.Limits ?? new(), containerLimits = _preferences.ContainerLimits ?? new Dictionary<string, ResourceLimits>(),
+    };
+
+    /// <summary>Saves only the limits; everything the Preferences tab owns stays as it is.</summary>
+    private object SaveLimits(JsonElement parameters)
+    {
+        var page = parameters.Deserialize<LimitsPage>(Json) ?? throw new ArgumentException("Limits are required.");
+        if (page.ContainerLimits?.Keys.Any(name => !ControlCommands.IsContainerName(name)) == true) throw new ArgumentException("Invalid container name.");
+        var next = (_preferences with { Limits = page.Limits, ContainerLimits = page.ContainerLimits }).Validated();
+        next.Save();
+        Apply(next);
+        return new { message = "Limits saved. Watcher enforces them from the next refresh." };
+    }
+
+    private void Apply(Preferences next)
+    {
+        _preferences = next;
+        _activity.Configure(next);
+        _limits.Configure(next);
+    }
+
+    /// <summary>Records each new breach, then sends its stop or remove without holding up the poll loop.</summary>
+    private void Enforce(Snapshot snapshot)
+    {
+        var breaches = _limits.Evaluate(snapshot, _capacity.Wsl.Cpus);
+        if (breaches.Count == 0) return;
+        Persist(() => breaches.Select(breach => _store.Record(breach.ToEvent(snapshot.At))).ToList());
+        foreach (var breach in breaches.Where(b => b.Operation.Length > 0))
+        {
+            if (_lifecycle.Values.Any(action => action.Name == breach.Info.Name)) continue;
+            _ = RunAsync(new ContainerRequest(breach.Info.Name, breach.Operation, Removal.Limit));
+        }
     }
 
     private static string Required(JsonElement element, string property)
@@ -308,7 +350,7 @@ public partial class MainWindow
         string? PickSave() { var dialog = new SaveFileDialog { FileName = suggested, OverwritePrompt = true }; return dialog.ShowDialog(this) == true ? dialog.FileName : null; }
     }
 
-    private void ShowWindow()
+    internal void ShowWindow()
     {
         Show();
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
@@ -373,7 +415,7 @@ public partial class MainWindow
         if (!rule.Notifications || rule.Muted) return;
         // Notability comes from structured detail fields, never from owner-controlled summary text:
         // a container named to contain "exited" must not fire or suppress alerts (CWE-290).
-        var notable = activity.Kind is ActivityKind.CpuHigh or ActivityKind.MemoryHigh or ActivityKind.WslcOffline
+        var notable = activity.Kind is ActivityKind.CpuHigh or ActivityKind.MemoryHigh or ActivityKind.WslcOffline or ActivityKind.Limit
             || activity.Kind == ActivityKind.State && EnteredStoppedState(activity.Detail)
             || activity.Kind == "runtime" && RuntimeUnhealthy(activity.Detail);
         if (!notable) return;

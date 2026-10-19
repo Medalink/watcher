@@ -2,7 +2,7 @@ using System.Text.Json.Nodes;
 
 namespace Watcher;
 
-/// <summary>A page's {type:"container", name, op, source}; source is "reap" from the Reap button, else "row".</summary>
+/// <summary>A page's {type:"container", name, op, source}; source is "reap" from the Reap button, "limit" from enforcement, else "row".</summary>
 public sealed record ContainerRequest(string Name, string Op, string Source = "row");
 
 /// <summary>

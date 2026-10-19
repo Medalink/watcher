@@ -22,6 +22,7 @@
     <Resource Include="app.ico" />
     <!-- The UI is plain files served to WebView2; they sit beside the exe, not inside it. -->
     <Content Include="web\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <Content Include="LICENSE;THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
   </ItemGroup>
 
 </Project>

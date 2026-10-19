@@ -37,6 +37,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         _activity = new ActivityTracker(_store.LoadContainers());
         _activity.Configure(_preferences);
+        _limits.Configure(_preferences);
         _monitor.Preload(_store.LoadHistory(Now() - PreloadWindowMs, Monitor.HistoryLength));
         RestorePlacement();
         StateChanged += (_, _) => OnStateChanged();
@@ -164,6 +165,7 @@ public partial class MainWindow : Window
             if (snapshot is not null)
             {
                 Persist(() => _store.Write(snapshot, _activity.Observe(snapshot, _capacity.Wsl.Cpus)));
+                Enforce(snapshot);
                 _ = ProbeAsync(snapshot);
                 if (IsVisible || snapshot.Containers.Any(c => c.Info.State == "running")) _ = CaptureRuntimeEventsAsync(snapshot.At);
             }
@@ -469,6 +471,8 @@ public partial class MainWindow : Window
     private void SavePlacement()
     {
         var bounds = WindowState == WindowState.Normal ? new Rect(Left, Top, Width, Height) : RestoreBounds;
+        // A window that never reached the normal state has no restore bounds (Rect.Empty is infinite).
+        if (bounds.IsEmpty || !double.IsFinite(bounds.Width) || !double.IsFinite(bounds.Height)) return;
         try
         {
             Directory.CreateDirectory(DataFolder);

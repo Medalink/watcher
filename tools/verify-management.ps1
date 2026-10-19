@@ -34,6 +34,11 @@ function Invoke-ProofWslc([string[]]$Arguments) {
 }
 
 try {
+    $running = $null
+    if ([Threading.Mutex]::TryOpenExisting('Global\Watcher-single-instance', [ref]$running)) {
+        $running.Dispose()
+        throw 'Close Watcher first. Only one Watcher runs per device, and the proof starts its own.'
+    }
     if (!$SkipBuild) {
         dotnet build (Join-Path $projectRoot 'Watcher.csproj') -c Release --no-restore --verbosity quiet
         if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }

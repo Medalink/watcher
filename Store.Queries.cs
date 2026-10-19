@@ -51,6 +51,7 @@ public sealed record RemovedQuery(int Offset = 0, int Limit = 10);
 public static class Removal
 {
     public const string Reap = "reap";
+    public const string Limit = "limit";
     public const string Watcher = "watcher";
     public const string Outside = "outside";
 }
@@ -181,7 +182,7 @@ public sealed partial class Store
               ORDER BY removed_at DESC, c.name LIMIT $limit OFFSET $offset)
             SELECT name, title, path, group_name, image, port, orphan, first_seen, removed_at,
               coalesce((
-                SELECT CASE json_extract(a.detail, '$.source') WHEN 'reap' THEN '{Removal.Reap}' ELSE '{Removal.Watcher}' END
+                SELECT CASE json_extract(a.detail, '$.source') WHEN 'reap' THEN '{Removal.Reap}' WHEN 'limit' THEN '{Removal.Limit}' ELSE '{Removal.Watcher}' END
                 FROM events a
                 WHERE a.container = page.name AND a.kind = '{ActivityKind.Action}' AND json_extract(a.detail, '$.op') = 'remove'
                   AND json_extract(a.detail, '$.ok') = 1 AND a.at BETWEEN page.removed_at - $lead AND page.removed_at + $lag

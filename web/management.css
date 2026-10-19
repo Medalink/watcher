@@ -33,12 +33,13 @@
 .mg-checks-stack { display: flex; flex-direction: column; gap: 10px; margin: 2px 0 10px; }
 .mg-override { border-left: 2px solid color-mix(in srgb, var(--sd-pending) 35%, transparent); padding-left: 12px; margin-bottom: 12px; }
 .mg-override .mg-row-actions { margin-top: 8px; }
+.rs-rule { display: grid; grid-template-columns: 9rem 12rem minmax(0, 14rem); justify-content: start; align-items: center; gap: 12px 16px; margin: 0 0 12px; }
+.rs-samples { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
 
 /* ---------- Status text ---------- */
 
 .mg-outcome .sd-meta { margin-top: 0; user-select: text; }
 /* Inline headings place the marker dot and count beside the text (no flex gap there). */
-.mg-group-head h2 .sd-dot, .mg-dialog-head h3 .sd-dot { margin-inline-end: 8px; }
 .mg-group-head h2 .count { margin-inline-start: 6px; }
 .mg-warn-text { color: var(--sd-pending); }
 .mg-sub { margin: 16px 0 8px; }
@@ -72,9 +73,9 @@
 .mg-details summary:hover { color: var(--sd-fg); }
 
 .mg-checks { list-style: none; margin: 4px 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.mg-checks li { display: grid; grid-template-columns: 7rem 9rem minmax(0, 1fr); gap: 12px; align-items: baseline; font-size: var(--text-sm); }
+.mg-checks li { display: grid; grid-template-columns: 10rem 9rem minmax(0, 1fr); gap: 12px; align-items: baseline; font-size: var(--text-sm); }
 .mg-checks li .sd-badge { justify-self: start; }
-.mg-check-name { font-weight: 600; color: var(--sd-fg); overflow-wrap: anywhere; }
+.mg-check-name { font-weight: var(--font-weight-semibold); color: var(--sd-fg); overflow-wrap: anywhere; }
 
 /* ---------- Containers tab ---------- */
 
@@ -91,7 +92,7 @@
 .mg-crow:hover { background: var(--sd-raised); }
 .mg-crow.selected { border-left-color: var(--sd-fg); }
 .mg-cname { display: flex; flex-direction: column; min-width: 0; }
-.mg-cname .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mg-cname .name { font-weight: var(--font-weight-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mg-cname .sub { font-size: var(--text-2xs); color: var(--sd-fg-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mg-cport { color: var(--sd-fg); font-size: var(--text-sm); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mg-crow .mg-row-actions { grid-column: 2 / -1; justify-content: flex-end; }
@@ -204,7 +205,7 @@ div.mg-event, .mg-event summary { display: flex; flex-wrap: wrap; align-items: c
     .mg-search { flex-basis: 100%; width: 100%; }
     .mg-line { grid-template-columns: 19ch minmax(0, 1fr); padding-block: 8px; }
     .mg-line .msg { grid-column: 1 / -1; }
-    .mg-checks li { grid-template-columns: 7rem minmax(0, 1fr); }
+    .mg-checks li { grid-template-columns: 10rem minmax(0, 1fr); }
     .mg-checks li > :last-child { grid-column: 1 / -1; }
 }
 

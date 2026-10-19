@@ -1,0 +1,38 @@
+name: Bug report
+description: Something in Watcher is wrong or broken.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start a container with `wslc run ...`
+        2. Open the Resources page
+        3. ...
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2 (build 26100)
+    validations:
+      required: true
+  - type: input
+    id: wslc
+    attributes:
+      label: wslc version
+      description: Output of `wslc --version`.
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or report
+      description: A screenshot, or the Copy for AI report for the time it happened (it is saved under `%LOCALAPPDATA%\Watcher\exports`).
