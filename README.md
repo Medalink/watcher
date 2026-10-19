@@ -37,12 +37,14 @@ Watcher is a free, open-source dashboard for **WSLC**, the container runtime bui
 
 - Windows 11.
 - WSL with container support (`wslc`). Run `wsl --update` if `wslc` is missing.
-- [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0), or the .NET 10 SDK to build.
+- The [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0), only if you build from source. The release download includes .NET.
 - [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/), which Windows 11 already includes.
 
 ## Install
 
-Prebuilt downloads are not published yet. Build from source:
+Download `Watcher-<version>-win-x64.zip` from the [latest release](https://github.com/Medalink/watcher/releases/latest), unzip it anywhere (for example `%LOCALAPPDATA%\Programs\Watcher`), and run `Watcher.exe`. The build is self-contained, so you don't need to install .NET. The exe isn't code-signed yet, so the first time you run it Windows SmartScreen may show "Windows protected your PC". Choose **More info**, then **Run anyway**.
+
+To build from source instead, install the .NET 10 SDK and run:
 
 ```powershell
 git clone https://github.com/Medalink/watcher.git
