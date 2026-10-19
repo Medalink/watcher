@@ -66,10 +66,6 @@ For any visible change, add a before and after screenshot to the pull request.
 
 Say what changes for the user, what you deliberately left unchanged, and exactly what you ran to verify it: the test count, the verification script, the screenshots. The pull request template walks through this.
 
-## Code of conduct
-
-This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). Be kind and assume good intent.
-
 ## License
 
 By contributing, you agree that your contributions are licensed under the [MIT License](LICENSE).
