@@ -1,3 +1,5 @@
+import { getLabel } from "./labels.js";
+
 /** Presentation only. The consumer supplies authoritative remaining time on every set(). */
 export function mountCountdown(root) {
   let disposed = false;
@@ -26,7 +28,7 @@ export function mountCountdown(root) {
       attribute(progress, "aria-valuemin", "0");
       attribute(progress, "aria-valuemax", "100");
       attribute(progress, "aria-valuenow", percent);
-      attribute(progress, "aria-valuetext", `${seconds} ${seconds === "1" ? "second" : "seconds"} remaining, ${next}`);
+      attribute(progress, "aria-valuetext", getLabel("countdown.remaining", { count: seconds, state: getLabel(`countdown.${next}`) }));
       if (progress.style.getPropertyValue("--value") !== percent) progress.style.setProperty("--value", percent);
     }
     if (deadline !== null) timer = setTimeout(render, Math.min(100, remaining));

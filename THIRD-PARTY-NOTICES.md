@@ -5,7 +5,7 @@ Watcher is licensed under the MIT License (see [LICENSE](LICENSE)). It includes 
 | Component | Where | License |
 | --- | --- | --- |
 | Signal design kit | `web/vendor/signal/` (source and built CSS/JS) | MIT, © 2026 Medalink |
-| Tailwind CSS (compiled into `signal.css`) | `web/vendor/signal/signal.css` | MIT, © Tailwind Labs, Inc. |
+| Tailwind CSS (compiled into `signal-core.css`) | `web/vendor/signal/signal-core.css` | MIT, © Tailwind Labs, Inc. |
 | Source Code Pro | `web/vendor/signal/fonts/` | SIL Open Font License 1.1, © Adobe |
 | Microsoft.Data.Sqlite | NuGet, in published builds | MIT, © Microsoft Corporation |
 | Microsoft.Web.WebView2 SDK | NuGet, in published builds | BSD 3-Clause style, © Microsoft Corporation |

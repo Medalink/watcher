@@ -1,0 +1,82 @@
+/** Names of the icons in the Signal icon set. */
+export type IconName =
+  | "account"
+  | "align-center"
+  | "align-justify"
+  | "align-left"
+  | "align-right"
+  | "bell"
+  | "bold"
+  | "bookmark"
+  | "chart"
+  | "check"
+  | "chevron-down"
+  | "chevron-left"
+  | "chevron-right"
+  | "chevron-up"
+  | "chevrons-left"
+  | "chevrons-right"
+  | "close"
+  | "comment"
+  | "container"
+  | "contract"
+  | "copy"
+  | "database"
+  | "delete"
+  | "download"
+  | "edit"
+  | "expand"
+  | "external"
+  | "hash"
+  | "history"
+  | "italic"
+  | "link"
+  | "list-bullet"
+  | "list-number"
+  | "lock"
+  | "logs"
+  | "maximize"
+  | "menu"
+  | "minimize"
+  | "minus"
+  | "more"
+  | "object"
+  | "pause"
+  | "people"
+  | "person"
+  | "pin"
+  | "place"
+  | "play"
+  | "plus"
+  | "publish"
+  | "rain"
+  | "redo"
+  | "reply"
+  | "restore"
+  | "search"
+  | "send"
+  | "settings"
+  | "sliders"
+  | "smile"
+  | "sparkle"
+  | "strike"
+  | "sync"
+  | "theme"
+  | "underline"
+  | "undo"
+  | "unlink"
+  | "view"
+  | "warning"
+  | "write";
+
+/** The `d` of each icon's path, on the 24 grid, drawn with a 1.5 stroke and square caps. */
+export const ICONS: Readonly<Record<IconName, string>>;
+
+export const ICON_NAMES: readonly IconName[];
+
+/**
+ * The markup of one icon (an `svg.sd-icon`), ready for `innerHTML`. Without
+ * `label` it is decorative (`aria-hidden`); with one it is an image with that name.
+ * Throws for a name that is not in the set.
+ */
+export function icon(name: IconName, label?: string): string;

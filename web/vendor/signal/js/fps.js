@@ -13,6 +13,8 @@
  *   import { fps } from "signal-design/js";
  *   const off = fps.subscribe((value) => console.log(value));
  */
+import { getLabel } from "./labels.js";
+
 const WINDOW_MS = 1000;
 const REST_MS = 3000;
 const listeners = new Set();
@@ -32,7 +34,7 @@ function paint(value) {
     const slot = el.querySelector("b") || el;
     slot.textContent = String(value);
     el.dataset.tone = toneFor(value);
-    el.setAttribute("aria-label", `${value} frames per second`);
+    el.setAttribute("aria-label", getLabel("fps.value", { value }));
   }
   return nodes.length;
 }

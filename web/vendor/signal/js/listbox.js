@@ -23,6 +23,7 @@
  *       <button type="button" role="option" data-value="UTC">UTC</button>…
  *   Picking sets the text, the hidden input's value and fires "change".
  */
+import { getLabel } from "./labels.js";
 
 function options(list) {
   return [...list.querySelectorAll('[role="option"]')];
@@ -67,7 +68,7 @@ export function filterList(list, query) {
     if (!empty) {
       empty = document.createElement("p");
       empty.className = "sd-menu-label sd-listbox-empty";
-      empty.textContent = list.dataset.sdEmpty || "No matches";
+      empty.textContent = list.dataset.sdEmpty || getLabel("list.empty");
       list.append(empty);
     }
     empty.hidden = false;

@@ -61,6 +61,7 @@ function themeColors(canvas) {
   // light. Signal colors carry meaning, so the backdrop never uses them.
   const fg = read("--sd-fg", "#f4f4f6");
   return {
+    font: read("--sd-font-mono", "monospace"),
     color: fg,
     head: fg,
     background: read("--sd-shell-bg", read("--sd-canvas", "#050506")),

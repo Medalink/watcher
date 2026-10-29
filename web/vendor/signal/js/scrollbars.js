@@ -5,7 +5,8 @@
  *
  * init() turns it on by setting data-sd-scrollbars="auto" on <html>; pass
  * init({ scrollbars: "always" }) to keep them visible. While an element
- * scrolls it carries data-sd-scrolling.
+ * scrolls it carries data-sd-scrolling. initScrollbars() does the same
+ * without the rest of init().
  */
 const IDLE_MS = 2000;
 const lastScroll = new WeakMap();
@@ -47,4 +48,16 @@ export function onScrollActivity(event) {
 
 export function setScrollbars(mode = "auto") {
   document.documentElement.dataset.sdScrollbars = mode;
+}
+
+/**
+ * Just the scrollbars, without init(): sets the mode and listens for scrolling,
+ * so a React app can have the auto-hiding thumbs and nothing else. The DOM
+ * ignores a listener it already has, so calling it again only changes the mode,
+ * and without a document (server rendering) it does nothing.
+ */
+export function initScrollbars(mode = "auto") {
+  if (typeof document === "undefined") return;
+  setScrollbars(mode);
+  document.addEventListener("scroll", onScrollActivity, { passive: true, capture: true });
 }

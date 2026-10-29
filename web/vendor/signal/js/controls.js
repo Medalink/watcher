@@ -9,6 +9,7 @@
  * Dropzone:   <label class="sd-dropzone"><input type="file"> Drop files</label>
  */
 import { toast } from "./toast.js";
+import { getLabel } from "./labels.js";
 
 export function setExpanded(target, open) {
   const panel = typeof target === "string" ? document.getElementById(target) : target;
@@ -42,13 +43,13 @@ export function onControlsClick(event) {
     const spec = copy.dataset.sdCopy;
     const source = /^[#.[]/.test(spec) ? document.querySelector(spec) : null;
     const text = source ? source.textContent : spec;
-    const unavailable = () => toast("Copy unavailable. Select the line instead.", { tone: "danger" });
+    const unavailable = () => toast(getLabel("copy.failed"), { tone: "danger" });
     if (!navigator.clipboard?.writeText) {
       unavailable();
       return;
     }
     navigator.clipboard.writeText(text).then(
-      () => toast("Copied", { tone: "success", timeout: 1400 }),
+      () => toast(getLabel("copy.done"), { tone: "success", timeout: 1400 }),
       unavailable,
     );
   }
