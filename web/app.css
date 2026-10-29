@@ -39,8 +39,8 @@ table.containers { width: 100%; table-layout: fixed; }
 .containers th, .containers td { vertical-align: middle; }
 .containers .col-toggle { width: 48px; }
 .containers .col-port { width: 80px; }
-.containers .col-metric { width: 20%; }
-.containers .col-uptime { width: 88px; }
+.containers .col-metric { width: 18%; }
+.containers .col-uptime { width: 128px; }
 .containers .col-state { width: 168px; }
 .containers .col-remove { width: 56px; }
 .containers th.col-toggle { padding-inline: 0; text-align: center; }
@@ -59,8 +59,9 @@ table.containers { width: 100%; table-layout: fixed; }
 .branch { color: var(--sd-fg-subtle); font-size: var(--text-sm); margin: 1px 0 0 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row .id { overflow: hidden; }
 
-.row .port, .row .uptime { font-size: var(--text-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.row .uptime { color: var(--sd-fg-muted); }
+.row .port { font-size: var(--text-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Docker adds the health to the uptime ("3 days (unhealthy)"), so it wraps inside its column. */
+.row .uptime { font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--sd-fg-muted); line-height: 1.35; }
 
 /* A metric keeps its value and a line in the row; the opened details plot it larger. */
 .metric-line { display: flex; align-items: center; gap: 12px; }
