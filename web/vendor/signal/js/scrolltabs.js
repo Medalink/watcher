@@ -16,13 +16,12 @@ function sync(el) {
   }
 }
 
-const watch = new ResizeObserver((entries) => {
-  for (const { target } of entries) sync(target);
-});
+// Created on first use, so importing this module needs no browser.
+let watch;
 
 export function initScrollTabs(root = document) {
   for (const el of root.querySelectorAll(SCROLLERS)) {
     sync(el);
-    watch.observe(el);
+    (watch ??= new ResizeObserver((entries) => entries.forEach(({ target }) => sync(target)))).observe(el);
   }
 }

@@ -1,6 +1,6 @@
 /*
  * Management layouts use the shared controls and sd- components from
- * vendor/signal/signal.css; this file is layout and state only.
+ * vendor/signal/signal-core.css; this file is layout and state only.
  */
 
 .mg-page .heading { gap: 24px; }
@@ -123,7 +123,7 @@ div.mg-event, .mg-event summary { display: flex; flex-wrap: wrap; align-items: c
 .mg-follow-state { margin-top: 8px; }
 .mg-picker { display: flex; flex-wrap: wrap; gap: 6px; margin: -6px 0 18px; max-height: 120px; overflow-y: auto; }
 .mg-pick .sd-dot { flex: none; }
-.mg-pick[aria-pressed="true"] .sd-dot { background: var(--tone, var(--sd-fg-subtle)); }
+.mg-pick:has(input:checked) .sd-dot { background: var(--tone, var(--sd-fg-subtle)); }
 .mg-pick .name { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .mg-log-summary { margin: 4px 0 8px; }

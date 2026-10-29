@@ -16,7 +16,7 @@ export const SQUARES = [
 ];
 
 // Glyphs only, no words: Greek and Cyrillic capitals, digits and a few marks,
-// all inside Source Code Pro so nothing falls back to a system font.
+// all inside Source Code Pro (the --sd-font-mono stack) so nothing falls back to a system font.
 export const GLYPHS = "ΓΔΘΛΞΠΣΦΨΩБГДЖЗИЙЛПФЦЧШЩЪЫЭЮЯ0123456789:.=*+<>|";
 
 // Trail falloff: about 50 glyphs stay clearly visible behind each head.
@@ -31,8 +31,6 @@ const TRAIL_OPACITIES = [
 const LIVE_CHARS = 6;
 // A gap in a stream every so often, so columns read as falling code, not bars.
 const GAP_CHANCE = 0.08;
-
-const FONT = '"Source Code Pro", ui-monospace, "MS Gothic", monospace';
 
 function seededRandom(seed) {
   const x = Math.sin(seed) * 10000;
@@ -90,6 +88,7 @@ export function createRainRenderer(
 
   const isMobile = options.mobile;
   const fontSize = isMobile ? 18 : 16;
+  const FONT = options.font || "monospace";
   const columnSpacing = isMobile ? 2 : 1;
   const streamsPerColumn = 2;
   const depthLayers = [

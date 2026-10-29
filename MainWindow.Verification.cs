@@ -49,6 +49,7 @@ public partial class MainWindow
                 await using var shot = File.Create(Path.Combine(folder, "manage-" + tab + ".png"));
                 await Web.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, shot);
             }
+            await VerifyPlotKeyboardAsync(results);
             if (name.Length > 0)
             {
                 var inspect = await EvaluateAsync("(async()=>{const {request}=await import('./app.js');return await request('manage',{operation:'inspect',parameters:{name:" + encodedName + "}})})()");
@@ -130,6 +131,68 @@ public partial class MainWindow
             _exit = true;
             Close();
         }
+    }
+
+    /// <summary>The Stats plots read without a mouse: focus, arrow keys, Home and End, and every sample announced.</summary>
+    private async Task VerifyPlotKeyboardAsync(List<object> results)
+    {
+        // The proof window may not be the active one; the page still has to behave as if it were.
+        await Web.CoreWebView2.CallDevToolsProtocolMethodAsync("Emulation.setFocusEmulationEnabled", """{"enabled":true}""");
+        const string reload = """document.querySelector('#stats-range button[data-range="1h"]').click(); true""";
+        await EvaluateAsync("location.hash = '#stats'; " + reload);
+        var until = DateTime.UtcNow.AddSeconds(90);
+        JsonElement home, end;
+        while (true)
+        {
+            await Task.Delay(2000, _closing.Token);
+            await EvaluateAsync("document.getElementById('stats-cpu').focus(); true");
+            home = await PressInPlotAsync("Home", 36);
+            end = await PressInPlotAsync("End", 35);
+            if (home.GetProperty("announced").GetString() != end.GetProperty("announced").GetString()) break;
+            // Nothing to step between yet: no plot drawn, or one sample. Ask again for newer samples.
+            if (DateTime.UtcNow > until) throw new InvalidOperationException($"The Stats plot never had two samples to step between: {home} {end}");
+            await EvaluateAsync(reload);
+        }
+        if (!home.GetProperty("matches").GetBoolean() || !end.GetProperty("matches").GetBoolean())
+            throw new InvalidOperationException($"Home and End must show a readout and announce the same sample: {home} {end}");
+        var left = await PressInPlotAsync("ArrowLeft", 37);
+        if (left.GetProperty("announced").GetString() == end.GetProperty("announced").GetString() || !left.GetProperty("matches").GetBoolean())
+            throw new InvalidOperationException($"ArrowLeft did not move off the newest sample: {left}");
+        var right = await PressInPlotAsync("ArrowRight", 39);
+        if (right.GetProperty("announced").GetString() != end.GetProperty("announced").GetString())
+            throw new InvalidOperationException($"ArrowRight did not come back to the newest sample: {right}");
+        await PressInPlotAsync("Home", 36);
+        var past = await PressInPlotAsync("ArrowLeft", 37);
+        if (past.GetProperty("announced").GetString() != home.GetProperty("announced").GetString())
+            throw new InvalidOperationException($"ArrowLeft went past the oldest sample: {past}");
+        var escaped = await PressInPlotAsync("Escape", 27);
+        if (escaped.GetProperty("shown").GetBoolean()) throw new InvalidOperationException($"Escape did not hide the readout: {escaped}");
+        results.Add(new { plotKeyboard = new { home, end, left, right, escaped } });
+        await EvaluateAsync("document.activeElement.blur(); location.hash = '#manage'; true");
+    }
+
+    /// <summary>Sends one real key press to the page, then reads the CPU plot's readout and what was announced.</summary>
+    private async Task<JsonElement> PressInPlotAsync(string key, int keyCode)
+    {
+        foreach (var type in new[] { "rawKeyDown", "keyUp" })
+            await Web.CoreWebView2.CallDevToolsProtocolMethodAsync("Input.dispatchKeyEvent", JsonSerializer.Serialize(new { type, key, code = key, windowsVirtualKeyCode = keyCode, nativeVirtualKeyCode = keyCode }));
+        return await EvaluateAsync("""
+            (() => {
+                const holder = document.getElementById('stats-cpu');
+                const readout = holder.querySelector('.sd-plot-readout');
+                const shown = !!readout && !readout.hidden;
+                const announced = holder.nextElementSibling?.textContent ?? '';
+                return {
+                    focused: document.activeElement === holder,
+                    shown,
+                    readout: readout?.textContent ?? '',
+                    announced,
+                    matches: shown && announced.length > 0
+                        && announced.startsWith(readout.firstChild.textContent)
+                        && announced.endsWith(', ' + readout.querySelector('b').textContent)
+                };
+            })()
+            """);
     }
 
     private async Task<JsonElement> EvaluateAsync(string expression)

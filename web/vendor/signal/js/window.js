@@ -13,6 +13,7 @@
  * The title bar gets data-platform = mac | windows | linux; on macOS the
  * custom buttons hide and the native traffic lights are used.
  */
+import { getLabel } from "./labels.js";
 
 function platform() {
   const p = (navigator.userAgentData?.platform || navigator.platform || navigator.userAgent).toLowerCase();
@@ -31,7 +32,7 @@ async function syncMaximized(bar) {
   if (!win) return;
   const max = await win.isMaximized();
   bar.toggleAttribute("data-maximized", max);
-  bar.querySelector('[data-sd-window="maximize"]')?.setAttribute("aria-label", max ? "Restore" : "Maximize");
+  bar.querySelector('[data-sd-window="maximize"]')?.setAttribute("aria-label", getLabel(max ? "window.restore" : "window.maximize"));
 }
 
 export async function windowAction(action, bar = document.querySelector(".sd-titlebar")) {

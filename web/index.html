@@ -2,63 +2,65 @@
 <html lang="en" data-theme="ink">
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Watcher</title>
-    <link rel="stylesheet" href="vendor/signal/signal.css">
+    <link rel="stylesheet" href="vendor/signal/signal-core.css">
+    <link rel="stylesheet" href="vendor/signal/font-source-code-pro.css">
     <link rel="stylesheet" href="app.css">
     <link rel="stylesheet" href="management.css">
 </head>
 <body>
-<div class="sd-shell">
+<a class="sd-skip" href="#main">Skip to content</a>
+<div class="sd-shell" id="shell">
     <canvas class="sd-rain" data-sd-rain data-sd-rain-style="squares" aria-hidden="true"></canvas>
 
-    <header class="sd-titlebar topbar drag">
+    <div class="sd-titlebar topbar drag" role="region" aria-label="Window">
         <div class="sd-titlebar-start">
             <span class="crumb"><span id="crumb">Containers</span></span>
         </div>
         <div class="sd-titlebar-end no-drag">
             <div class="sd-window-controls">
-                <button data-sd-window="minimize" aria-label="Minimize"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 6h8"/></svg></button>
+                <button data-sd-window="minimize" aria-label="Minimize"><i data-ic="minimize"></i></button>
                 <button data-sd-window="maximize" aria-label="Maximize" id="maximize">
-                    <svg viewBox="0 0 12 12" class="sd-icon-maximize when-normal" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="2.5" width="7" height="7"/></svg>
-                    <svg viewBox="0 0 12 12" class="sd-icon-restore when-max" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="3.5" width="7" height="7"/><path d="M4.5 3.5v-2h6v6h-2"/></svg>
+                    <span class="sd-icon-maximize"><i data-ic="maximize"></i></span>
+                    <span class="sd-icon-restore"><i data-ic="restore"></i></span>
                 </button>
-                <button data-sd-window="close" aria-label="Close"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button>
+                <button data-sd-window="close" aria-label="Close"><i data-ic="close"></i></button>
             </div>
         </div>
+    </div>
+
+    <header class="sd-shell-topbar">
+        <button class="sd-btn sd-btn-ghost sd-btn-icon" type="button" data-sd-shell="drawer" aria-controls="shell-rail" aria-label="Open navigation"><i data-ic="menu"></i></button>
     </header>
 
-    <nav class="sd-rail" aria-label="Pages" data-sd-ornaments="bottom" data-sd-ornaments-size="200">
-        <div class="sd-rail-home drag" title="Watcher">
-            <svg viewBox="0 0 24 24" class="icon" aria-hidden="true">
-                <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/>
-                <circle cx="12" cy="12" r="3"/>
-            </svg>
-        </div>
+    <nav class="sd-rail" id="shell-rail" aria-label="Pages" data-sd-ornaments="bottom" data-sd-ornaments-size="200">
+        <div class="sd-rail-home drag" title="Watcher" aria-hidden="true"><i data-ic="view"></i></div>
         <div class="sd-rail-list">
             <a class="sd-rail-item" href="#containers" data-page="containers" title="Containers">
-                <svg viewBox="0 0 24 24" class="icon"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
+                <i data-ic="container"></i>
                 <span>Containers</span>
             </a>
             <a class="sd-rail-item" href="#stats" data-page="stats" title="Resource history">
-                <svg viewBox="0 0 24 24" class="icon"><path d="M3 3v18h18"/><path d="M8 17v-5"/><path d="M13 17V8"/><path d="M18 17v-9"/></svg>
+                <i data-ic="chart"></i>
                 <span>Stats</span>
             </a>
             <a class="sd-rail-item" href="#activity" data-page="activity" title="Everything the monitor observed">
-                <svg viewBox="0 0 24 24" class="icon"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                <i data-ic="history"></i>
                 <span>Activity</span>
             </a>
         </div>
         <div class="sd-rail-tools">
             <button class="sd-rail-item" data-sd-rain-toggle data-sd-tip="Digital rain" data-sd-tip-side="right" aria-label="Digital rain" aria-pressed="false">
-                <svg viewBox="0 0 24 24" class="icon"><path d="M6 3v6M6 12v2M12 6v9M12 18v2M18 3v4M18 10v8"/></svg>
+                <i data-ic="rain"></i>
             </button>
             <button class="sd-rail-item" data-sd-theme-cycle data-sd-tip="Next theme (Shift+T)" data-sd-tip-side="right" aria-label="Next theme">
-                <svg viewBox="0 0 24 24" class="icon"><rect x="4" y="4" width="16" height="16"/><path d="M12 4v16"/><path d="M12 4h8v16h-8z" fill="currentColor" stroke="none"/></svg>
+                <i data-ic="theme"></i>
             </button>
         </div>
     </nav>
 
-    <main class="sd-shell-main">
+    <main class="sd-shell-main" id="main" tabindex="-1">
         <div class="sd-shell-content" data-sd-ornaments data-sd-edges>
 
         <section class="page" data-page="containers">
@@ -77,17 +79,17 @@
                 <p>Watcher needs WSL with container support (wslc). Update WSL with <code>wsl --update</code>, then restart Watcher.</p>
             </div>
 
-            <section class="tiles">
-                <div class="sd-stat-box" data-tone="success">
+            <section class="tiles" aria-label="Totals">
+                <div class="sd-stat-box">
                     <span class="sd-stat-label">Running</span>
                     <span class="sd-stat-value"><span id="running">0</span><small id="total">/ 0</small></span>
                 </div>
-                <div class="sd-stat-box" data-tone="accent">
+                <div class="sd-stat-box">
                     <span class="sd-stat-label">Memory in use</span>
                     <span class="sd-stat-value" id="memory-total">—</span>
                     <span class="sd-stat-sub" id="memory-total-of"></span>
                 </div>
-                <div class="sd-stat-box" data-tone="accent">
+                <div class="sd-stat-box">
                     <span class="sd-stat-label">CPU</span>
                     <span class="sd-stat-value" id="cpu-total">—</span>
                     <span class="sd-stat-sub" id="cpu-total-of"></span>
@@ -95,12 +97,12 @@
                 <div class="sd-stat-box" id="orphan-tile">
                     <span class="sd-stat-label">Orphaned</span>
                     <span class="sd-stat-value" id="orphans">0</span>
-                    <span class="sd-stat-end"><button class="sd-btn sd-btn-primary sd-btn-sm" data-tone="danger" id="reap" disabled title="Remove every container whose folder was deleted">Reap</button></span>
+                    <span class="sd-stat-end"><button class="sd-btn sd-btn-sm" data-tone="danger" id="reap" disabled title="Remove every container whose folder was deleted">Reap</button></span>
                 </div>
             </section>
 
-            <div class="sd-label side-label">Windows</div>
-            <section class="tiles side">
+            <h2 class="sd-label side-label" id="windows-h">Windows</h2>
+            <section class="tiles side" aria-labelledby="windows-h">
                 <div class="sd-stat-box sd-stat-box-sm">
                     <span class="sd-stat-label">CPU of Windows</span>
                     <span class="sd-stat-value" id="windows-cpu">—</span>
@@ -124,14 +126,22 @@
             <p class="sd-note" data-tone="danger" id="error" hidden></p>
 
             <section class="removed" id="removed">
-                <button class="section-head removed-toggle" id="removed-toggle" aria-expanded="false" aria-controls="removed-body">
-                    <h2><span class="chev"><svg viewBox="0 0 24 24" class="icon"><path d="m9 18 6-6-6-6"/></svg></span> Removed containers <span class="count sd-count" id="removed-count">0</span></h2>
-                </button>
+                <h2 class="removed-head">
+                    <button class="sd-btn sd-btn-ghost sd-btn-sm" type="button" id="removed-toggle" aria-expanded="false" aria-controls="removed-body">
+                        <i data-ic="chevron-right"></i>
+                        Removed containers <span class="sd-count" id="removed-count">0</span>
+                    </button>
+                </h2>
                 <div id="removed-body" hidden>
-                    <div class="removed-columns" id="removed-columns">
-                        <span>Name</span><span>Group</span><span>Port</span><span>How</span><span>Removed</span><span>Lifetime</span><span>Peak memory</span><span>Avg CPU</span>
+                    <div class="sd-table-wrap" id="removed-table" tabindex="0" role="region" aria-label="Removed containers">
+                        <table class="sd-table sd-table-hover">
+                            <thead><tr>
+                                <th>Name</th><th class="col-group">Group</th><th class="col-port">Port</th><th class="col-how">How</th><th class="col-at">Removed</th>
+                                <th class="col-lifetime">Lifetime</th><th class="sd-num col-peak">Peak memory</th><th class="sd-num col-avg">Avg CPU</th>
+                            </tr></thead>
+                            <tbody id="removed-rows"></tbody>
+                        </table>
                     </div>
-                    <div id="removed-rows"></div>
                     <p class="sd-empty" id="removed-empty" hidden>Nothing removed yet. Containers you remove or reap will be listed here.</p>
                     <div class="pager" id="removed-pager" hidden>
                         <span class="sd-num" id="removed-range"></span>
@@ -149,36 +159,36 @@
                     <h1 class="sd-title">Stats</h1>
                     <p class="sd-subtle">CPU and memory history across every container, from the local database.</p>
                 </div>
-                <div class="sd-tabs" id="stats-range" role="tablist">
+                <div class="sd-tabs" id="stats-range" role="tablist" aria-label="Range">
                     <button role="tab" data-range="1h">1h</button><button role="tab" data-range="24h">24h</button><button role="tab" data-range="7d">7d</button><button role="tab" data-range="30d">30d</button>
                 </div>
             </div>
 
-            <section class="tiles">
-                <div class="sd-stat-box" data-tone="accent">
+            <section class="tiles" aria-label="Peaks">
+                <div class="sd-stat-box">
                     <span class="sd-stat-label">Peak total CPU</span>
                     <span class="sd-stat-value" id="stats-peak-cpu">—</span>
                     <span class="sd-stat-sub" id="stats-peak-cpu-at"></span>
                 </div>
-                <div class="sd-stat-box" data-tone="extra">
+                <div class="sd-stat-box">
                     <span class="sd-stat-label">Peak total memory</span>
                     <span class="sd-stat-value" id="stats-peak-memory">—</span>
                     <span class="sd-stat-sub" id="stats-peak-memory-at"></span>
                 </div>
-                <div class="sd-stat-box" data-tone="success">
+                <div class="sd-stat-box">
                     <span class="sd-stat-label">Average running</span>
                     <span class="sd-stat-value" id="stats-running">—</span>
                     <span class="sd-stat-sub">containers with samples</span>
                 </div>
-                <div class="sd-stat-box" data-tone="pending">
+                <div class="sd-stat-box">
                     <span class="sd-stat-label">Activity events</span>
                     <span class="sd-stat-value" id="stats-events">—</span>
                     <span class="sd-stat-sub" id="stats-events-top"></span>
                 </div>
             </section>
 
-            <div class="sd-label side-label">Windows</div>
-            <section class="tiles side">
+            <h2 class="sd-label side-label" id="stats-windows-h">Windows</h2>
+            <section class="tiles side" aria-labelledby="stats-windows-h">
                 <div class="sd-stat-box sd-stat-box-sm">
                     <span class="sd-stat-label">Peak CPU of Windows</span>
                     <span class="sd-stat-value" id="stats-windows-cpu">—</span>
@@ -201,30 +211,30 @@
                 </div>
             </section>
 
-            <section class="sd-card" data-tone="accent">
+            <section class="sd-card">
                 <div class="sd-card-head">Total CPU<span class="hint" id="stats-bucket"></span></div>
                 <div class="sd-card-body">
-                    <div class="sd-plot" data-tone="accent" id="stats-cpu"></div>
+                    <div class="sd-plot" id="stats-cpu" role="group" aria-label="Total CPU over time, arrow keys step through the samples"></div>
                 </div>
             </section>
 
-            <section class="sd-card" data-tone="extra">
+            <section class="sd-card">
                 <div class="sd-card-head">Total memory</div>
                 <div class="sd-card-body">
-                    <div class="sd-plot" data-tone="extra" id="stats-memory"></div>
+                    <div class="sd-plot" id="stats-memory" role="group" aria-label="Total memory over time, arrow keys step through the samples"></div>
                 </div>
             </section>
 
             <section class="sd-card">
                 <div class="sd-card-head">Containers <span class="count sd-count" id="stats-count"></span></div>
                 <div class="sd-card-body">
-                    <div class="table-wrap" id="stats-table-wrap"><table class="sd-table" id="stats-table"></table></div>
+                    <div class="sd-table-wrap" id="stats-table-wrap" tabindex="0" role="region" aria-label="Containers table"><table class="sd-table sd-table-compact" id="stats-table"></table></div>
                     <p class="sd-empty" id="stats-table-empty" hidden>No container has samples in this range yet.</p>
                     <p class="hint" id="stats-p95-note"></p>
                 </div>
             </section>
 
-            <section class="sd-card" data-tone="extra">
+            <section class="sd-card">
                 <div class="sd-card-head">Database<button class="sd-btn sd-btn-sm" id="stats-open-folder">Open folder</button></div>
                 <div class="sd-card-body">
                     <dl class="facts sd-kv db-facts" id="stats-db"></dl>
@@ -250,7 +260,7 @@
                     <button class="chip sd-chip" data-group="monitor" title="monitor started or stopped, wslc offline or online">Monitor</button>
                     <button class="chip sd-chip" data-group="runtime" title="native container events and collection gaps">Runtime</button>
                 </div>
-                <select id="activity-container"><option value="">All containers</option></select>
+                <select id="activity-container" aria-label="Container"><option value="">All containers</option></select>
                 <input id="activity-search" type="search" placeholder="Search summaries and details" spellcheck="false">
                 <span class="spacer"></span>
                 <select id="export-range" title="Range to copy">
@@ -304,90 +314,111 @@
 
 <template id="group-template">
     <section class="group">
-        <div class="section-head">
-            <h2><span class="group-name"></span> <span class="count sd-count"></span></h2>
+        <h2 class="sd-label section-head"><span class="group-name"></span> <span class="count sd-count"></span></h2>
+        <div class="sd-table-wrap" tabindex="0" role="region">
+            <table class="sd-table sd-table-hover containers">
+                <thead><tr>
+                    <th class="col-toggle" data-sort="created" tabindex="0" title="Created" aria-label="Created"><i data-ic="history"></i></th>
+                    <th data-sort="name" tabindex="0">Name</th>
+                    <th class="col-port" data-sort="port" tabindex="0">Port</th>
+                    <th class="col-metric" data-sort="cpu" tabindex="0">CPU</th>
+                    <th class="col-metric" data-sort="memory" tabindex="0">Memory</th>
+                    <th class="col-uptime" data-sort="uptime" tabindex="0">Uptime</th>
+                    <th class="col-state" data-sort="state" tabindex="0">State</th>
+                    <th class="col-remove"><span class="sd-sr-only">Remove</span></th>
+                </tr></thead>
+            </table>
         </div>
-        <div class="columns">
-            <button class="sort" data-sort="created" title="Created"><svg viewBox="0 0 24 24" class="icon"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button>
-            <button class="sort" data-sort="name">Name</button>
-            <button class="sort" data-sort="port">Port</button>
-            <button class="sort" data-sort="cpu">CPU</button>
-            <button class="sort" data-sort="memory">Memory</button>
-            <button class="sort" data-sort="uptime">Uptime</button>
-            <button class="sort" data-sort="state">State</button>
-            <span></span>
-        </div>
-        <div class="rows"></div>
     </section>
 </template>
 
 <template id="row-template">
-    <article class="row">
-        <div class="edge-tone"></div>
-        <div class="head">
-            <div class="cell chev"><svg viewBox="0 0 24 24" class="icon"><path d="m9 18 6-6-6-6"/></svg></div>
-            <div class="cell id">
+    <tbody class="row">
+        <tr class="summary">
+            <td class="col-toggle"><button class="sd-btn sd-btn-ghost sd-btn-icon sd-btn-sm toggle" type="button" data-sd-toggle="" aria-expanded="false" aria-controls=""><i data-ic="chevron-right"></i></button></td>
+            <td class="id">
                 <div class="title"><span class="marker sd-dot"></span><span class="name"></span></div>
                 <div class="branch"></div>
-            </div>
-            <div class="cell details reveal"><div>
-                <dl class="facts sd-kv">
-                    <dt>Network</dt><dd class="sd-num" data-f="net"></dd>
-                    <dt>Disk</dt><dd class="sd-num" data-f="disk"></dd>
-                    <dt>Processes</dt><dd class="sd-num" data-f="pids"></dd>
-                    <dt>Created</dt><dd data-f="created"></dd>
-                    <dt>Image</dt><dd data-f="image"></dd>
-                    <dt>Path</dt><dd data-f="path"></dd>
-                </dl>
-                <div class="orphan-note">Folder deleted. Reap to free its memory.</div>
-            </div></div>
-            <div class="cell port"></div>
-            <div class="cell metric cpu">
-                <div class="value sd-num"></div>
-                <div class="chart sd-plot sd-plot-inline">
-                    <svg class="spark" viewBox="0 0 100 100" preserveAspectRatio="none"><path class="grid" d="M0 25H100M0 50H100M0 75H100"/><polygon class="area"/><polyline class="line"/></svg>
-                    <span class="scale sd-num"></span><span class="span"></span>
+            </td>
+            <td class="col-port port"></td>
+            <td class="col-metric metric cpu">
+                <div class="metric-line">
+                    <span class="value sd-num"></span>
+                    <div class="chart sd-plot sd-plot-inline"><svg class="spark" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polygon class="area"/><polyline class="line"/></svg></div>
                 </div>
-            </div>
-            <div class="cell metric mem">
-                <div class="value sd-num"><span class="v"></span><span class="limit"></span></div>
-                <div class="chart sd-plot sd-plot-inline">
-                    <svg class="spark" viewBox="0 0 100 100" preserveAspectRatio="none"><path class="grid" d="M0 25H100M0 50H100M0 75H100"/><polygon class="area"/><polyline class="line"/></svg>
-                    <span class="scale sd-num"></span><span class="span"></span>
+            </td>
+            <td class="col-metric metric mem">
+                <div class="metric-line">
+                    <span class="value sd-num"></span>
+                    <div class="chart sd-plot sd-plot-inline"><svg class="spark" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polygon class="area"/><polyline class="line"/></svg></div>
                 </div>
-            </div>
-            <div class="cell uptime"></div>
-            <div class="cell state"><span class="badge sd-badge"></span></div>
-            <div class="cell actions">
-                <button class="sd-btn sd-btn-icon" data-tone="danger" data-op="remove" title="Remove container and its data">
-                    <svg viewBox="0 0 24 24" class="icon"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><path d="M10 11v6M14 11v6"/></svg>
-                </button>
-                <div class="reveal"><div class="action-list">
-                    <button class="sd-btn" data-op="toggle"><svg viewBox="0 0 24 24" class="icon"></svg><span></span></button>
-                    <button class="sd-btn" data-op="restart"><svg viewBox="0 0 24 24" class="icon"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg><span>Restart</span></button>
-                    <button class="sd-btn" data-op="logs"><svg viewBox="0 0 24 24" class="icon"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg><span>Follow logs</span></button>
-                    <button class="sd-btn" data-op="folder"><svg viewBox="0 0 24 24" class="icon"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg><span>Open folder</span></button>
-                    <button class="sd-btn" data-op="inspect"><span>Inspect</span></button>
-                    <button class="sd-btn" data-op="shell"><span>Terminal</span></button>
-                    <button class="sd-btn" data-op="files"><span>Files</span></button>
-                    <div class="working">Working…</div>
+            </td>
+            <td class="col-uptime uptime"></td>
+            <td class="col-state state"><span class="badge sd-badge"></span></td>
+            <td class="col-remove"><button class="sd-btn sd-btn-ghost sd-btn-icon sd-btn-sm" type="button" data-tone="danger" data-op="remove" title="Remove container and its data" aria-label="Remove container and its data"><i data-ic="delete"></i></button></td>
+        </tr>
+        <tr class="detail">
+            <td colspan="8">
+                <div class="sd-expand"><div>
+                    <div class="detail-body">
+                        <dl class="facts sd-kv sd-kv-plain">
+                            <dt class="phone-only">State</dt><dd class="phone-only" data-f="state"></dd>
+                            <dt class="phone-only">CPU</dt><dd class="phone-only sd-num" data-f="cpu"></dd>
+                            <dt class="phone-only">Memory</dt><dd class="phone-only sd-num" data-f="memory"></dd>
+                            <dt class="narrow-only">Port</dt><dd class="narrow-only sd-num" data-f="port"></dd>
+                            <dt class="narrow-only">Uptime</dt><dd class="narrow-only" data-f="uptime"></dd>
+                            <dt>Network</dt><dd class="sd-num" data-f="net"></dd>
+                            <dt>Disk</dt><dd class="sd-num" data-f="disk"></dd>
+                            <dt>Processes</dt><dd class="sd-num" data-f="pids"></dd>
+                            <dt>Created</dt><dd data-f="created"></dd>
+                            <dt>Image</dt><dd data-f="image"></dd>
+                            <dt>Path</dt><dd data-f="path"></dd>
+                            <dt class="orphan-key" hidden>Folder</dt><dd class="orphan-note" data-tone="pending" hidden>Deleted. Reap to free its memory.</dd>
+                        </dl>
+                        <div class="plots">
+                            <div class="plot-block metric cpu">
+                                <span class="sd-label">CPU</span>
+                                <div class="chart sd-plot">
+                                    <svg class="spark" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path class="grid" d="M0 25H100M0 50H100M0 75H100"/><polygon class="area"/><polyline class="line"/></svg>
+                                    <span class="scale sd-num"></span><span class="span"></span>
+                                </div>
+                            </div>
+                            <div class="plot-block metric mem">
+                                <span class="sd-label">Memory <span class="limit"></span></span>
+                                <div class="chart sd-plot">
+                                    <svg class="spark" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path class="grid" d="M0 25H100M0 50H100M0 75H100"/><polygon class="area"/><polyline class="line"/></svg>
+                                    <span class="scale sd-num"></span><span class="span"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="sd-actions action-list" role="group">
+                        <button class="sd-btn sd-btn-sm" type="button" data-op="toggle"></button>
+                        <button class="sd-btn sd-btn-sm" type="button" data-op="restart">Restart</button>
+                        <button class="sd-btn sd-btn-sm" type="button" data-op="logs">Follow logs</button>
+                        <button class="sd-btn sd-btn-sm" type="button" data-op="folder">Open folder</button>
+                        <button class="sd-btn sd-btn-sm" type="button" data-op="inspect">Inspect</button>
+                        <button class="sd-btn sd-btn-sm" type="button" data-op="shell">Terminal</button>
+                        <button class="sd-btn sd-btn-sm" type="button" data-op="files">Files</button>
+                        <span class="working" role="status">Working…</span>
+                    </div>
                 </div></div>
-            </div>
-        </div>
-    </article>
+            </td>
+        </tr>
+    </tbody>
 </template>
 
 <template id="removed-template">
-    <div class="removed-row">
-        <div class="id"><div class="name"></div><div class="sub"></div></div>
-        <div class="group-cell"></div>
-        <div class="port"></div>
-        <div><span class="badge sd-badge"></span></div>
-        <div class="at"></div>
-        <div class="lifetime"></div>
-        <div class="sd-num peak"></div>
-        <div class="sd-num avg"></div>
-    </div>
+    <tr class="removed-row">
+        <td class="id"><div class="name"></div><div class="sub"></div></td>
+        <td class="group-cell col-group"></td>
+        <td class="port col-port"></td>
+        <td><span class="badge sd-badge"></span></td>
+        <td class="at"></td>
+        <td class="lifetime col-lifetime"></td>
+        <td class="sd-num peak col-peak"></td>
+        <td class="sd-num avg col-avg"></td>
+    </tr>
 </template>
 
 <script type="module" src="app.js"></script>

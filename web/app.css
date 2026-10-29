@@ -1,21 +1,10 @@
 /*
  * Watcher app layer: layout, app state and the bridge chrome.
- * Components and tokens come from vendor/signal/signal.css; nothing here
+ * Components and tokens come from vendor/signal/signal-core.css; nothing here
  * restyles an sd- component, it only places them and wires row state.
  */
 
-/* Icon defaults for the app's stroke icons. */
-.icon {
-    width: 16px; height: 16px;
-    fill: none; stroke: currentColor; stroke-width: 2;
-    stroke-linecap: square; stroke-linejoin: miter;
-    flex: none;
-}
-
 [hidden] { display: none !important; }
-
-/* One grid for the column captions and every row, so they line up. */
-:root { --cols: 34px minmax(170px, 1.2fr) 132px minmax(150px, 1fr) minmax(200px, 1.1fr) 100px 100px 136px; }
 
 /* ---------- Shell ----------
  * The frame itself is the kit's .sd-shell (rail, title row, content, status
@@ -34,7 +23,6 @@
 .heading { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; align-items: flex-start; }
 .heading .sd-subtle { margin-top: 4px; }
 .heading-side { margin-top: 2px; }
-.heading-side .sd-status { margin-top: 0; }
 
 .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 28px 0 36px; }
 .tiles:has(+ .side-label) { margin-bottom: 18px; }
@@ -42,154 +30,88 @@
 .tiles.side { margin-top: 0; }
 
 /* ---------- Container rows ---------- */
+/* One table per group; each container is a tbody of a line and a details row that opens under it. */
 
 .group + .group { margin-top: 32px; }
+.section-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 
-.columns { display: grid; grid-template-columns: var(--cols); padding: 0 14px 10px 1px; }
-.columns > * {
-    font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: var(--tracking-widest);
-    color: var(--sd-fg-subtle);
-}
-.sort {
-    justify-self: start; display: inline-flex; align-items: center; gap: 4px;
-    padding: 0; border: 0; background: none; cursor: pointer; transition: color 120ms var(--ease-out);
-    font: inherit; color: inherit;
-}
-.sort:hover { color: var(--sd-fg); }
-.sort.current { color: var(--sd-fg-subtle); }
-.sort.current::after { content: '↓'; }
-.sort.current.asc::after { content: '↑'; }
-.sort[data-sort="created"] { justify-self: center; }
-.sort .icon { width: 12px; height: 12px; }
+table.containers { width: 100%; table-layout: fixed; }
+.containers th, .containers td { vertical-align: middle; }
+.containers .col-toggle { width: 48px; }
+.containers .col-port { width: 80px; }
+.containers .col-metric { width: 18%; }
+.containers .col-uptime { width: 128px; }
+.containers .col-state { width: 168px; }
+.containers .col-remove { width: 56px; }
+.containers th.col-toggle { padding-inline: 0; text-align: center; }
 
-.rows { display: flex; flex-direction: column; gap: 8px; }
+.row .summary { cursor: pointer; }
+/* The container's state is the line's left edge: its tone when it has one, a hairline otherwise. */
+.row .summary > :first-child { box-shadow: inset 2px 0 0 var(--tone, var(--sd-line-strong)); text-align: center; padding-inline: 0; }
+.row .toggle .sd-icon { transition: transform 160ms var(--ease-out); }
+.row .toggle[aria-expanded="true"] .sd-icon { transform: rotate(90deg); }
+.row .detail > td { padding: 0; border: 0; }
+.row .detail:hover { background: none; }
+.row:has(.sd-expand[data-open]) .detail > td { border-bottom: 1px solid var(--sd-line); }
 
-.row {
-    position: relative;
-    background: var(--sd-surface);
-    border: 1px solid var(--sd-line);
-    transition: border-color 120ms var(--ease-out);
-}
-.row:hover { border-color: var(--sd-line-strong); }
-.row.expanded { border-color: var(--sd-line-strong); }
-
-.edge-tone { position: absolute; left: -1px; top: -1px; bottom: -1px; width: 2px; background: var(--sd-line-strong); }
-.row[data-tone] .edge-tone { background: var(--tone); }
-
-.head {
-    display: grid; grid-template-columns: var(--cols);
-    align-items: start;
-    padding: 0 14px 0 0;
-    cursor: pointer;
-    transition: background 120ms var(--ease-out), padding .2s var(--ease-out);
-}
-.head:hover { background: var(--sd-raised); }
-.row.expanded .head { padding-bottom: 28px; }
-
-.cell { min-width: 0; }
-/* Facts open on a second grid row under name and port; charts and actions span both rows and grow into it. */
-.cell.chev { grid-area: 1 / 1; }
-.cell.id { grid-area: 1 / 2; }
-.cell.port { grid-area: 1 / 3; }
-.cell.cpu { grid-area: 1 / 4 / 3 / 5; }
-.cell.mem { grid-area: 1 / 5 / 3 / 6; }
-.cell.uptime { grid-area: 1 / 6; }
-.cell.state { grid-area: 1 / 7; }
-.cell.actions { grid-area: 1 / 8 / 3 / 9; }
-.cell.details { grid-area: 2 / 2 / 3 / 4; padding-right: 24px; }
-.cell.chev, .cell.port, .cell.uptime, .cell.state { height: 64px; display: flex; align-items: center; }
-.cell.chev { justify-content: center; color: var(--sd-fg-faint); }
-.cell.chev .icon { width: 14px; height: 14px; transition: transform .2s var(--ease-out); }
-.head:hover .cell.chev { color: var(--sd-fg); }
-.row.expanded .cell.chev .icon { transform: rotate(90deg); }
-
-.cell.id { padding: 12px 20px 0 0; }
-.title { display: flex; align-items: center; gap: 12px; font-size: var(--text-base); font-weight: var(--font-weight-semibold); }
+.title { display: flex; align-items: center; gap: 10px; font-weight: var(--font-weight-semibold); min-width: 0; }
 .title .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.branch { color: var(--sd-fg-subtle); font-size: var(--text-sm); margin: 1px 0 0 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.branch { color: var(--sd-fg-subtle); font-size: var(--text-sm); margin: 1px 0 0 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .id { overflow: hidden; }
 
-.cell.port { color: var(--sd-fg); font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
-.cell.uptime { color: var(--sd-fg-muted); font-size: var(--text-sm); }
+.row .port { font-size: var(--text-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Docker adds the health to the uptime ("3 days (unhealthy)"), so it wraps inside its column. */
+.row .uptime { font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--sd-fg-muted); line-height: 1.35; }
 
-/* A metric keeps its value and sparkline in place; expanding only grows the chart. */
-.cell.metric { display: flex; align-items: flex-start; gap: 12px; padding-right: 24px; }
-.metric .value { flex: none; width: 60px; font-size: var(--text-sm); font-weight: var(--font-weight-semibold); line-height: 22px; margin-top: 21px; color: var(--sd-fg-muted); white-space: nowrap; }
-/* The memory limit only shows expanded, on its own line under the current value. */
-.metric .limit { display: none; font-size: var(--text-2xs); color: var(--sd-fg-faint); }
-.row.expanded .metric .limit { display: block; }
-.cell.mem .value { width: 76px; }
+/* A metric keeps its value and a line in the row; the opened details plot it larger. */
+.metric-line { display: flex; align-items: center; gap: 12px; }
+.metric .value { flex: none; min-width: 64px; font-size: var(--text-sm); font-weight: var(--font-weight-semibold); color: var(--sd-fg-muted); white-space: nowrap; }
 
-/* Centred on the 64px row like the value beside it; without the offset a full chart touches the row's top edge. */
-.chart { margin-top: 17px; transition: height .2s var(--ease-out); }
-.row.expanded .chart { height: 132px; border-bottom: 1px solid var(--sd-line); }
-.row.expanded .chart .grid { opacity: 1; }
-.chart .grid { opacity: 0; transition: opacity 160ms var(--ease-out); }
+.detail-body { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(0, 2fr); gap: 16px 40px; padding: 4px 16px 16px 48px; }
+.facts { gap: 7px 12px; font-size: var(--text-sm); align-content: start; }
+.facts dd { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.facts .dim { color: var(--sd-fg-faint); margin: 0 6px; }
+.orphan-note { color: var(--tone); }
+.narrow-only, .phone-only { display: none; }
+
+.plots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-content: start; }
+.plot-block { display: grid; gap: 6px; padding-bottom: 20px; }
+.plot-block .limit { color: var(--sd-fg-faint); text-transform: none; letter-spacing: 0; margin-inline-start: 6px; }
+.plot-block .chart { --h: 120px; margin-top: 14px; border-bottom: 1px solid var(--sd-line); }
 .chart .scale, .chart .span {
-    position: absolute; color: var(--sd-fg-faint); line-height: 1;
-    opacity: 0; transition: opacity 160ms var(--ease-out); pointer-events: none;
+    position: absolute; color: var(--sd-fg-faint); line-height: 1; font-size: var(--text-2xs);
+    pointer-events: none;
 }
 .chart .scale { right: 0; top: -14px; }
 .chart .span { left: 0; bottom: -16px; }
-.row.expanded .chart .scale, .row.expanded .chart .span { opacity: 1; }
 
-.cell.actions { display: flex; flex-direction: column; align-items: flex-end; padding-top: 15px; }
-
-/* Expanding reveals extra content inside the same cells (grid rows 0fr → 1fr). */
-.reveal { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .2s var(--ease-out), opacity 160ms var(--ease-out); }
-.reveal > div { overflow: hidden; }
-.row.expanded .reveal { grid-template-rows: 1fr; opacity: 1; }
-.cell.actions .reveal { width: 100%; }
-
-.facts { gap: 7px 12px; margin: 4px 0 0 20px; font-size: var(--text-sm); }
-.facts dt { padding-top: 2px; }
-.facts dd { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.facts .dim { color: var(--sd-fg-faint); margin: 0 6px; }
-
-.orphan-note {
-    display: none;
-    margin: 14px 0 0 20px; padding: 9px 14px; width: fit-content;
-    border: 1px solid color-mix(in srgb, var(--sd-pending) 45%, transparent);
-    border-left: 2px solid var(--sd-pending);
-    background: var(--sd-canvas); color: var(--sd-pending); font-size: var(--text-sm);
-}
-.row[data-tone="pending"] .orphan-note { display: block; }
-
-.action-list { display: flex; flex-direction: column; gap: 8px; padding-top: 14px; }
-.action-list .sd-btn { width: 100%; }
-.working { display: none; color: var(--sd-pending); font-size: var(--text-sm); font-weight: var(--font-weight-semibold); padding: 2px 2px 0; }
-.row.busy .working { display: block; }
+.action-list { padding: 0 16px 16px 48px; }
+.working { display: none; color: var(--sd-pending); font-size: var(--text-sm); font-weight: var(--font-weight-semibold); }
+.row.busy .working { display: inline; }
 .row.busy .sd-btn { opacity: .5; pointer-events: none; }
 
 /* ---------- Removed containers ---------- */
-/* History, not live rows: no card, thin rules, muted text, and nothing to act on. */
+/* History, not live rows: muted text, and nothing to act on but opening a folder. */
 
-.removed { margin-top: 40px; --removed-cols: minmax(170px, 1.5fr) minmax(80px, .6fr) 70px 190px 100px 80px 96px 70px; }
-.removed-toggle { width: 100%; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; }
-.removed:not(.open) .removed-toggle { margin-bottom: 0; }
-/* The heading stays inline, not flex, so the spaces around the dot and count render as in the group headings. */
-.removed-toggle .chev { display: inline-flex; width: 22px; vertical-align: -2px; color: var(--sd-fg-faint); transition: color 120ms var(--ease-out); }
-.removed-toggle .chev .icon { width: 14px; height: 14px; transition: transform .2s var(--ease-out); }
-.removed-toggle:hover .chev { color: var(--sd-fg); }
-.removed.open .removed-toggle .chev .icon { transform: rotate(90deg); }
+.removed { margin-top: 40px; }
+.removed-head { margin: 0 0 8px; font-size: var(--text-base); }
+#removed-toggle .sd-icon { transition: transform 160ms var(--ease-out); }
+#removed-toggle[aria-expanded="true"] .sd-icon { transform: rotate(90deg); }
 
-.removed-columns, .removed-row { display: grid; grid-template-columns: var(--removed-cols); column-gap: 10px; align-items: center; }
-.removed-columns { padding: 0 14px 8px 17px; }
-.removed-columns > * {
-    font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: var(--tracking-widest);
-    color: var(--sd-fg-subtle);
-}
-.removed-row {
-    padding: 6px 14px 6px 15px;
-    border-top: 1px solid var(--sd-line); border-left: 2px solid transparent;
-    color: var(--sd-fg-muted); font-size: var(--text-sm);
-}
-.removed-row:last-child { border-bottom: 1px solid var(--sd-line); }
-.removed-row > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.removed-row[data-tone] { border-left-color: var(--tone); }
+#removed-table table { table-layout: fixed; width: 100%; }
+#removed-table .col-group { width: 110px; }
+#removed-table .col-port { width: 70px; }
+#removed-table .col-how { width: 264px; }
+#removed-table .col-at { width: 100px; }
+#removed-table .col-lifetime { width: 80px; }
+#removed-table .col-peak { width: 130px; }
+#removed-table .col-avg { width: 90px; }
+.removed-row { color: var(--sd-fg-muted); font-size: var(--text-sm); }
+.removed-row > :first-child { box-shadow: inset 2px 0 0 var(--tone, transparent); }
+.removed-row > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .removed-row .name { font-weight: var(--font-weight-semibold); color: var(--sd-fg-subtle); overflow: hidden; text-overflow: ellipsis; }
 .removed-row .sub { font-size: var(--text-2xs); color: var(--sd-fg-faint); overflow: hidden; text-overflow: ellipsis; }
-.removed-row.opens { cursor: pointer; transition: background 120ms var(--ease-out); }
-.removed-row.opens:hover { background: var(--sd-raised); }
+.removed-row.opens { cursor: pointer; }
 .removed-row.opens:hover .name { color: var(--sd-fg); }
 
 .pager { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 12px; }
@@ -197,13 +119,9 @@
 
 /* ---------- Shared page parts ---------- */
 
-.section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-.heading-side { display: flex; align-items: center; gap: 18px; }
 /* A card title stays a heading for screen readers but takes the card head's type, not the kit's h2 size. */
 .sd-card-head > h2 { margin: 0; font-size: inherit; line-height: inherit; letter-spacing: inherit; color: inherit; }
 
-#stats-cpu, #stats-memory { height: 230px; }
-.chart .scale, .chart .span { font-size: var(--text-2xs); }
 #stats-table-wrap { min-width: 0; max-width: 100%; overflow-x: auto; }
 #stats-table th { text-align: right; }
 #stats-table th:first-child { text-align: left; }
@@ -257,8 +175,8 @@
 .event .summary { font-size: var(--text-sm); color: var(--sd-fg-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .event.expanded .summary { white-space: normal; user-select: text; }
 .event .chev { color: var(--sd-fg-faint); }
-.event .chev .icon { width: 14px; height: 14px; transition: transform .2s var(--ease-out); }
-.event.expanded .chev .icon { transform: rotate(90deg); }
+.event .chev .sd-icon { transition: transform .2s var(--ease-out); }
+.event.expanded .chev .sd-icon { transform: rotate(90deg); }
 .event .detail {
     display: none; margin: 0 14px 12px 96px;
     font-size: var(--text-2xs); white-space: pre-wrap; word-break: break-all;
@@ -287,11 +205,6 @@
 .e-bottomleft { bottom: 0; left: 0; width: 10px; height: 10px; cursor: nesw-resize; }
 body.maximized .edge { display: none; }
 
-/* Maximize shows one square; restore shows two. */
-.when-max { display: none; }
-body.maximized .when-max { display: block; }
-body.maximized .when-normal { display: none; }
-
 @media (max-width: 1199px) {
     .heading-side { flex-wrap: wrap; }
     .tiles { gap: 12px; }
@@ -302,4 +215,22 @@ body.maximized .when-normal { display: none; }
     .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .toolbar > .spacer { display: none; }
     #activity-search { flex: 1 1 100%; width: 100%; }
+
+    /* Port and uptime move into the opened details. A column shrinks to nothing rather than leaving the grid,
+       so the details row still spans every column. */
+    .containers .col-port, .containers .col-uptime { width: 0; padding: 0; border: 0; overflow: hidden; visibility: hidden; }
+    .narrow-only { display: block; }
+    .detail-body { grid-template-columns: minmax(0, 1fr); padding-inline-start: 16px; }
+    .action-list { padding-inline-start: 16px; }
+    #removed-table .col-group, #removed-table .col-port, #removed-table .col-lifetime { display: none; }
+}
+
+@media (max-width: 767px) {
+    /* A phone shows the name and its state; the rest is one tap away. */
+    .containers .col-metric, .containers .col-state { width: 0; padding: 0; border: 0; overflow: hidden; visibility: hidden; }
+    .phone-only { display: block; }
+    .plots { grid-template-columns: minmax(0, 1fr); }
+    #removed-table .col-peak, #removed-table .col-avg { display: none; }
+    #removed-table .col-how { width: 150px; }
+    #removed-table .sd-badge { white-space: normal; line-height: 1.3; }
 }

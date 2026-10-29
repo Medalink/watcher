@@ -10,6 +10,7 @@
  * Shortcuts   <dialog id="shortcuts" data-sd-shortcuts> opens on "?" (outside text fields).
  */
 import { openDialog } from "./dialog.js";
+import { getLabel } from "./labels.js";
 
 /* ---- Tags --------------------------------------------------------------- */
 
@@ -24,7 +25,7 @@ function addTag(field, text) {
   chip.append(value, " ");
   const remove = document.createElement("button");
   remove.type = "button";
-  remove.setAttribute("aria-label", `Remove ${value}`);
+  remove.setAttribute("aria-label", getLabel("tags.remove", { value }));
   remove.textContent = "×";
   chip.append(remove);
   if (field.dataset.name) {
@@ -109,7 +110,7 @@ export function drawSpark(el) {
     `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">` +
     `<polyline points="${points}" fill="none" stroke="currentColor" stroke-width="1.25" vector-effect="non-scaling-stroke"/>` +
     `<rect x="${Number(lx) - 1.5}" y="${Number(ly) - 1.5}" width="3" height="3" fill="currentColor"/></svg>`;
-  if (!el.hasAttribute("aria-label")) el.setAttribute("role", "img"), el.setAttribute("aria-label", `Trend: ${values.join(", ")}`);
+  if (!el.hasAttribute("aria-label")) el.setAttribute("role", "img"), el.setAttribute("aria-label", getLabel("spark.trend", { values: values.join(", ") }));
 }
 
 /* ---- Shortcuts sheet ---------------------------------------------------- */

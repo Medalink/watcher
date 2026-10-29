@@ -4,12 +4,20 @@
  *   <button data-sd-open="confirm">Delete</button>
  *   <dialog id="confirm" class="sd-dialog"> … <button data-sd-close>Cancel</button></dialog>
  *
- * Clicking the backdrop closes it unless the dialog has data-sd-static.
+ * Escape and a click on the backdrop close it unless the dialog has data-sd-static.
+ * data-sd-static="" (or any value but the two below) turns both off;
+ * data-sd-static="escape" turns off Escape only, "backdrop" the backdrop only.
  * data-sd-close="value" closes with dialog.returnValue = value.
  */
 function resolve(target) {
   return typeof target === "string" ? document.getElementById(target) : target;
 }
+
+/** Whether Escape, or the backdrop, closes this dialog: data-sd-static names what is switched off. */
+const closes = (dialog, path) => {
+  const off = dialog.dataset.sdStatic;
+  return off === undefined || (path === "escape" ? off === "backdrop" : off === "escape");
+};
 
 export function openDialog(target) {
   const dialog = resolve(target);
@@ -40,7 +48,7 @@ export function closeDialog(target, value) {
 export function onDialogKeydown(event) {
   if (event.key !== "Escape" || event.defaultPrevented) return;
   const dialog = event.target.closest?.("dialog[open]");
-  if (dialog && !("sdStatic" in dialog.dataset)) {
+  if (dialog && closes(dialog, "escape")) {
     event.preventDefault();
     dialog.close("");
     // Leave the closed dialog now; the close event hands focus back to the opener after.
@@ -66,7 +74,7 @@ export function onDialogClick(event) {
   }
   // A click whose target is the dialog itself landed on the backdrop.
   const dialog = event.target;
-  if (dialog instanceof HTMLDialogElement && dialog.open && !("sdStatic" in dialog.dataset)) {
+  if (dialog instanceof HTMLDialogElement && dialog.open && closes(dialog, "backdrop")) {
     const r = dialog.getBoundingClientRect();
     const inside = event.clientX >= r.left && event.clientX <= r.right && event.clientY >= r.top && event.clientY <= r.bottom;
     if (!inside) dialog.close("");

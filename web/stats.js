@@ -9,6 +9,9 @@ let data = null;
 let timer = null;
 let loading = 0;
 let sort = { key: 'cpuAvg', dir: -1 };
+// Each plot as last drawn, and the time of the sample its keyboard readout is on.
+const plots = new Map();
+const cursors = new Map();
 
 // ---------- Loading ----------
 
@@ -29,6 +32,9 @@ async function load() {
 }
 
 function selectRange(next) {
+    if (next !== range) {
+        cursors.clear();
+    }
     range = next;
     localStorage.setItem('stats-range', range);
     document.querySelectorAll('#stats-range button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.range === range)));
@@ -116,7 +122,8 @@ function element(name, attributes, parent) {
     return node;
 }
 
-function ticks(from, to) {
+/** Time ticks on a round step; a narrow plot drops every few so their labels do not touch. */
+function ticks(from, to, room) {
     const span = to - from;
     const hour = 3_600_000;
     const step = span <= hour ? 10 * 60_000 : span <= 24 * hour ? 4 * hour : span <= 7 * 24 * hour ? 24 * hour : 5 * 24 * hour;
@@ -125,8 +132,9 @@ function ticks(from, to) {
     for (let at = Math.ceil((from + offset) / step) * step - offset; at <= to; at += step) {
         result.push(at);
     }
+    const every = Math.ceil(result.length / Math.max(1, Math.floor(room / 64)));
 
-    return result;
+    return result.filter((_, index) => index % every === 0);
 }
 
 function tickLabel(at, span) {
@@ -155,6 +163,13 @@ function segments(points, bucketMs) {
 function chart(holder, read, axis, format, label = format, unit = '') {
     const { series, from, to, bucketMs } = data;
     holder.replaceChildren();
+    plots.delete(holder);
+    // Focusable only while there is something to read.
+    if (series.length > 0) {
+        holder.tabIndex = 0;
+    } else {
+        holder.removeAttribute('tabindex');
+    }
     if (series.length === 0) {
         const note = document.createElement('div');
         note.className = 'sd-plot-note';
@@ -177,7 +192,7 @@ function chart(holder, read, axis, format, label = format, unit = '') {
         element('line', { class: value === 0 ? 'base' : 'grid', x1: pad.left, x2: width - pad.right, y1: y(value), y2: y(value) }, svg);
         element('text', { x: pad.left - 10, y: y(value) + 3.5, 'text-anchor': 'end' }, svg).textContent = label(value);
     }
-    for (const at of ticks(from, to)) {
+    for (const at of ticks(from, to, plotWidth)) {
         element('text', { x: x(at), y: height - 6, 'text-anchor': 'middle' }, svg).textContent = tickLabel(at, to - from);
     }
     if (unit) {
@@ -203,6 +218,35 @@ function chart(holder, read, axis, format, label = format, unit = '') {
     readout.hidden = true;
     holder.appendChild(readout);
 
+    /** Puts the crosshair at cx and the readout beside it; a sample also gets its marker. */
+    function place(cx, sample, html) {
+        cross.setAttribute('x1', cx);
+        cross.setAttribute('x2', cx);
+        cross.setAttribute('visibility', 'visible');
+        marker.setAttribute('visibility', sample ? 'visible' : 'hidden');
+        if (sample) {
+            marker.setAttribute('cx', cx);
+            marker.setAttribute('cy', y(read(sample)));
+        }
+        readout.innerHTML = html;
+        readout.hidden = false;
+        const left = cx + 12 + readout.offsetWidth > width ? cx - 12 - readout.offsetWidth : cx + 12;
+        readout.style.left = `${left}px`;
+    }
+
+    /** Shows one sample and returns what a screen reader should hear for it. */
+    function show(sample) {
+        place(x(sample.at), sample, `${moment(sample.at)}<b>${format(read(sample))}</b>`);
+
+        return `${moment(sample.at)}, ${format(read(sample))}`;
+    }
+
+    function hide() {
+        cross.setAttribute('visibility', 'hidden');
+        marker.setAttribute('visibility', 'hidden');
+        readout.hidden = true;
+    }
+
     svg.addEventListener('mousemove', (event) => {
         const box = svg.getBoundingClientRect();
         const px = event.clientX - box.left;
@@ -211,32 +255,71 @@ function chart(holder, read, axis, format, label = format, unit = '') {
             return;
         }
         const at = from + ((px - pad.left) / plotWidth) * (to - from);
-        const nearest = series.reduce((best, p) => (Math.abs(p.at - at) < Math.abs(best.at - at) ? p : best));
-        const hit = Math.abs(nearest.at - at) <= bucketMs;
-        const cx = hit ? x(nearest.at) : px;
-        cross.setAttribute('x1', cx);
-        cross.setAttribute('x2', cx);
-        cross.setAttribute('visibility', 'visible');
-        marker.setAttribute('visibility', hit ? 'visible' : 'hidden');
-        if (hit) {
-            marker.setAttribute('cx', cx);
-            marker.setAttribute('cy', y(read(nearest)));
+        const nearest = sampleAt(series, at);
+        if (Math.abs(nearest.at - at) <= bucketMs) {
+            cursors.set(holder, nearest.at);
+            show(nearest);
+        } else {
+            place(px, null, `${moment(at)}<b>no data</b>`);
         }
-        readout.innerHTML = hit
-            ? `${moment(nearest.at)}<b>${format(read(nearest))}</b>`
-            : `${moment(at)}<b>no data</b>`;
-        readout.hidden = false;
-        const left = cx + 12 + readout.offsetWidth > width ? cx - 12 - readout.offsetWidth : cx + 12;
-        readout.style.left = `${left}px`;
     });
     svg.addEventListener('mouseleave', hide);
 
-    function hide() {
-        cross.setAttribute('visibility', 'hidden');
-        marker.setAttribute('visibility', 'hidden');
-        readout.hidden = true;
+    plots.set(holder, { series, show, hide });
+    // A refresh redraws under a focused plot; the readout comes back on the same sample and is not read out again.
+    if (document.activeElement === holder) {
+        show(sampleAt(series, cursors.get(holder)));
     }
 }
+
+// ---------- Keyboard readout ----------
+// Hover is not the only way to read a plot: it takes focus, the arrow keys step through its samples,
+// Home and End jump to the ends, and each sample is announced.
+
+/** The sample closest in time to at, or the newest one when there is no at. */
+function sampleAt(series, at) {
+    return at === undefined
+        ? series.at(-1)
+        : series.reduce((best, p) => (Math.abs(p.at - at) < Math.abs(best.at - at) ? p : best));
+}
+
+function listen(holder) {
+    const live = document.createElement('div');
+    live.className = 'sd-sr-only';
+    live.setAttribute('aria-live', 'polite');
+    holder.after(live);
+
+    holder.addEventListener('focus', () => {
+        const plot = plots.get(holder);
+        if (plot) {
+            plot.show(sampleAt(plot.series, cursors.get(holder)));
+        }
+    });
+    holder.addEventListener('blur', () => plots.get(holder)?.hide());
+    holder.addEventListener('keydown', (event) => {
+        const plot = plots.get(holder);
+        if (!plot || event.altKey || event.ctrlKey || event.metaKey) {
+            return;
+        }
+        if (event.key === 'Escape') {
+            plot.hide();
+            return;
+        }
+        const { series } = plot;
+        const here = series.indexOf(sampleAt(series, cursors.get(holder)));
+        const next = { ArrowLeft: here - 1, ArrowRight: here + 1, Home: 0, End: series.length - 1 }[event.key];
+        if (next === undefined) {
+            return;
+        }
+        event.preventDefault();
+        const sample = series[Math.min(series.length - 1, Math.max(0, next))];
+        cursors.set(holder, sample.at);
+        live.textContent = plot.show(sample);
+    });
+}
+
+listen($('stats-cpu'));
+listen($('stats-memory'));
 
 // ---------- Containers table ----------
 
@@ -269,7 +352,7 @@ function renderTable() {
         return order * sort.dir;
     });
     const head = `<thead><tr>${columns.map((c) =>
-        `<th data-key="${c.key}" data-sort="${c.key}"${c.title ? ` title="${escape(typeof c.title === 'function' ? c.title() : c.title)}"` : ''}${c.key === sort.key ? ` aria-sort="${sort.dir > 0 ? 'ascending' : 'descending'}"` : ''}>${c.label}</th>`).join('')}</tr></thead>`;
+        `<th data-key="${c.key}" data-sort="${c.key}" tabindex="0"${c.title ? ` title="${escape(typeof c.title === 'function' ? c.title() : c.title)}"` : ''}${c.key === sort.key ? ` aria-sort="${sort.dir > 0 ? 'ascending' : 'descending'}"` : ''}>${c.label}</th>`).join('')}</tr></thead>`;
     const body = rows.map((row) => `<tr>${columns.map((c) => c.text
         ? `<td title="${escape(row.name)}">${escape(row.title)}${row.title !== row.name ? `<span class="sub">${escape(row.name)}</span>` : ''}</td>`
         : `<td class="sd-num">${c.format(row[c.key])}</td>`).join('')}</tr>`).join('');
@@ -278,11 +361,24 @@ function renderTable() {
     $('stats-table-empty').hidden = rows.length > 0;
     $('stats-count').textContent = rows.length || '';
     $('stats-p95-note').textContent = rows.length ? `* p95 of the ${duration(data.bucketMs)} bucket averages, not of raw samples. Uptime is the share of watched time running.` : '';
-    table.querySelectorAll('th').forEach((th) => th.addEventListener('click', () => {
-        const key = th.dataset.key;
-        sort = sort.key === key ? { key, dir: -sort.dir } : { key, dir: columns.find((c) => c.key === key).text ? 1 : -1 };
-        renderTable();
-    }));
+    table.querySelectorAll('th').forEach((th) => {
+        const sortBy = (byKeyboard) => {
+            const key = th.dataset.key;
+            sort = sort.key === key ? { key, dir: -sort.dir } : { key, dir: columns.find((c) => c.key === key).text ? 1 : -1 };
+            renderTable();
+            // The table is drawn again, so a keyboard user would lose their place.
+            if (byKeyboard) {
+                table.querySelector(`th[data-key="${key}"]`).focus();
+            }
+        };
+        th.addEventListener('click', () => sortBy(false));
+        th.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                sortBy(true);
+            }
+        });
+    });
 }
 
 const escape = (value) => String(value).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);

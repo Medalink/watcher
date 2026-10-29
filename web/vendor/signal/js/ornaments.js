@@ -17,7 +17,14 @@
  * The pattern is seeded, so it is the same on every load, and it is drawn as
  * the element's own background: it stays put while the content scrolls and
  * never takes clicks.
+ *
+ * Name an art style (contours, lattice, waveform, dashed, book, stack) and the corner
+ * gets that drawing instead; see ornament-art.js.
+ *   <article data-sd-ornaments="contours">…</article>                 bottom right
+ *   <article data-sd-ornaments="tl book" data-sd-ornaments-seed="elderwood">
  */
+import { ORNAMENT_ART, ornamentArt, seeded } from "./ornament-art.js";
+
 const DEFAULT_SIZE = 340;
 
 // Each style: grid step, how the reach is measured, merge chance near the
@@ -26,18 +33,6 @@ export const ORNAMENT_STYLES = {
   blocks: { cell: 12, metric: "diagonal", falloff: 1.15, merge: 0.18, mix: [0.18, 0.42, 0.3, 0.1] },
   dust: { cell: 8, metric: "radial", falloff: 1.6, merge: 0.05, mix: [0.42, 0.12, 0.12, 0.34] },
 };
-
-function seeded(seed) {
-  let s = seed >>> 0 || 1;
-  return () => {
-    // mulberry32
-    s = (s + 0x6d2b79f5) >>> 0;
-    let t = s;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 /**
  * One ornament as SVG shapes, with the origin at the top-left. Flip it with a
@@ -125,6 +120,13 @@ export function ornamentShapes({ size = DEFAULT_SIZE, width = size, edge = false
   return shapes.join("");
 }
 
+/** A seed attribute: digits as they are, any other text hashed, so an id draws its own pattern. */
+function seedOf(value) {
+  if (!value) return null;
+  if (/^\d+$/.test(value)) return Number(value);
+  return Array.from(value).reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) >>> 0, 0);
+}
+
 const POSITION = { tl: "left top", tr: "right top", bl: "left bottom", br: "right bottom", top: "left top", bottom: "left bottom", center: "center center" };
 const EDGES = new Set(["top", "bottom"]);
 
@@ -135,8 +137,13 @@ function ornamentURL(corner, options) {
   const width = edge ? options.width : size;
   const flipX = !edge && corner.endsWith("r");
   const flipY = corner.startsWith("b");
-  const transform = flipX || flipY ? ` transform="translate(${flipX ? width : 0} ${flipY ? size : 0}) scale(${flipX ? -1 : 1} ${flipY ? -1 : 1})"` : "";
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${size}" viewBox="0 0 ${width} ${size}" shape-rendering="crispEdges"><g${transform}>${ornamentShapes({ ...options, width, edge, center })}</g></svg>`;
+  const art = Object.hasOwn(ORNAMENT_ART, options.style) ? ORNAMENT_ART[options.style] : null;
+  // A field is mirrored into its corner; an upright figure is placed there instead.
+  const transform = !art?.figure && (flipX || flipY) ? ` transform="translate(${flipX ? width : 0} ${flipY ? size : 0}) scale(${flipX ? -1 : 1} ${flipY ? -1 : 1})"` : "";
+  const shapes = art ? ornamentArt({ ...options, width, edge, center, right: flipX, bottom: flipY }) : ornamentShapes({ ...options, width, edge, center });
+  // Squares and straight lines snap to pixels; the art's curves stay smooth.
+  const rendering = !art || art.crisp ? ' shape-rendering="crispEdges"' : "";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${size}" viewBox="0 0 ${width} ${size}"${rendering}><g${transform}>${shapes}</g></svg>`;
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 }
 
@@ -145,7 +152,7 @@ function ornamentURL(corner, options) {
  * falling fast to a dark-grey hairline. The top edge also eases up into a
  * short white segment at its center. Sizes are the element's border box.
  */
-export function edgesSVG({ width, height, color = "#fff", dim = 0.12, center = 32, corner = 14, fall = 48, ramp = 60 }) {
+export function edgesSVG({ width, height, color = "#fff", dim = 0.12, center = 32, corner = 14, fall = 48, ramp = 60, base = {} }) {
   // Distances are in px along each side, so short and long sides look alike.
   const side = (id, x1, y1, x2, y2, length, withCenter) => {
     const at = (px) => Math.max(0, Math.min(1, px / length));
@@ -176,6 +183,18 @@ export function edgesSVG({ width, height, color = "#fff", dim = 0.12, center = 3
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges">` +
     `<defs>${defs}</defs>` +
+    // The element's own border under the glow, so a side never reads fainter
+    // than the edge the CSS gave it (a field's edge stays 3:1). base maps a
+    // side (t, r, b, l) to its color; a side left out has no border.
+    [
+      ["t", 0, 0, width, 1],
+      ["r", width - 1, 0, 1, height],
+      ["b", 0, height - 1, width, 1],
+      ["l", 0, 0, 1, height],
+    ]
+      .filter(([k]) => base[k])
+      .map(([k, x, y, w, h]) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${base[k]}"/>`)
+      .join("") +
     `<rect x="0" y="0" width="${width}" height="1" fill="url(#t)"/>` +
     `<rect x="0" y="${height - 1}" width="${width}" height="1" fill="url(#b)"/>` +
     `<rect x="0" y="0" width="1" height="${height}" fill="url(#l)"/>` +
@@ -189,7 +208,11 @@ export function paintOrnaments(el) {
   // Empty states get a center ornament unless they ask for something else
   // (data-sd-ornaments="none" turns it off).
   const fallback = el.matches(".sd-empty") ? "center" : "br";
-  const corners = "sdOrnaments" in el.dataset || el.matches(".sd-empty") ? (el.dataset.sdOrnaments || fallback).split(/\s+/).filter((c) => c in POSITION) : [];
+  const words = "sdOrnaments" in el.dataset || el.matches(".sd-empty") ? (el.dataset.sdOrnaments || fallback).split(/\s+/) : [];
+  // An art style in the list replaces the dust and blocks; the corners keep their meaning.
+  const art = words.find((w) => Object.hasOwn(ORNAMENT_ART, w));
+  const corners = words.filter((c) => Object.hasOwn(POSITION, c));
+  if (art && !corners.length && !words.includes("none")) corners.push(fallback);
   const size = Number(el.dataset.sdOrnamentsSize) || DEFAULT_SIZE;
   // A center ornament fits the box's height, so it sits behind the message.
   const centerSize = Math.max(80, Math.min(size, Math.round(el.clientHeight) || size, 320));
@@ -217,15 +240,35 @@ export function paintOrnaments(el) {
     const w = Math.max(2, Math.round(el.offsetWidth));
     const h = Math.max(2, Math.round(el.offsetHeight));
     const dim = style.colorScheme === "light" ? 0.16 : 0.14;
-    images.push(`url("data:image/svg+xml,${encodeURIComponent(edgesSVG({ width: w, height: h, color, dim }))}")`);
+    // Read the border the element has without its transition (a reduced-motion
+    // transition would report its starting color), then hide it the same way.
+    const transition = el.style.getPropertyValue("transition");
+    el.style.setProperty("transition", "none", "important");
+    el.style.borderColor = "";
+    const own = getComputedStyle(el);
+    const border = Object.fromEntries(["Top", "Right", "Bottom", "Left"].filter((side) => parseFloat(own[`border${side}Width`]) > 0).map((side) => [side[0].toLowerCase(), own[`border${side}Color`]]));
+    images.push(`url("data:image/svg+xml,${encodeURIComponent(edgesSVG({ width: w, height: h, color, dim, base: border }))}")`);
     positions.push("left top");
     sizes.push(`${w}px ${h}px`);
     el.style.borderColor = "transparent";
+    void own.borderTopColor;
+    el.style.setProperty("transition", transition);
   }
+
+  const base = seedOf(el.dataset.sdOrnamentsSeed) ?? 11;
 
   // Edges always use a softer "dust"; corners alternate blocks, dust.
   corners.forEach((corner, i) => {
     const edge = EDGES.has(corner);
+    if (art) {
+      // Art is a picture, not a field: still, and quieter behind a list or a message.
+      const centered = corner === "center";
+      const area = centered ? centerSize : size;
+      images.push(ornamentURL(corner, { size: area, width, color, strength: strength * (centered ? 0.75 : edge ? 0.6 : 1), seed: base + i * 97 + (edge ? width : 0) + (centered ? centerSize : 0), style: art }));
+      positions.push(POSITION[corner]);
+      sizes.push(edge ? `${width}px ${size}px` : `${area}px ${area}px`);
+      return;
+    }
     if (corner === "center") {
       const list = [];
       images.push(ornamentURL(corner, { size: centerSize, width: centerSize, color, strength: strength * 0.7, seed: 31 + centerSize, style: "dust", sparkle: sparkle ? sparkle * 1.5 : 0, glints: list }));
@@ -285,8 +328,9 @@ function layGlints(el, glints, color, style, edgeWidth) {
     layer = document.createElement("span");
     layer.className = "sd-glints";
     layer.setAttribute("aria-hidden", "true");
-    if (scroller) el.prepend(layer);
-    else el.append(layer);
+    // First, so the box's own rows keep :last-child (spacing and divider
+    // utilities key on it); motion.css strips the margin and line they give the layer.
+    el.prepend(layer);
   }
   if (style.position === "static") el.style.position = "relative";
   el.style.isolation = "isolate";
@@ -347,13 +391,16 @@ const SELECTOR = "[data-sd-ornaments], [data-sd-edges], .sd-empty";
 // Painting reads an element's size, which would force layout of content the
 // browser is skipping (content-visibility, display: none). Paint those when
 // they come into view instead.
-const waiting = new IntersectionObserver((entries) => {
-  for (const e of entries) {
-    if (!e.isIntersecting) continue;
-    waiting.unobserve(e.target);
-    paintOrnaments(e.target);
-  }
-});
+// Created on first use, so importing this module needs no browser.
+let waiting;
+const waitFor = (el) =>
+  (waiting ??= new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      waiting.unobserve(e.target);
+      paintOrnaments(e.target);
+    }
+  })).observe(el);
 
 function rendered(el) {
   return el.checkVisibility ? el.checkVisibility({ contentVisibilityAuto: true }) : true;
@@ -362,24 +409,26 @@ function rendered(el) {
 function paintAll(root = document) {
   for (const el of root.querySelectorAll(SELECTOR)) {
     if (rendered(el)) paintOrnaments(el);
-    else waiting.observe(el);
+    else waitFor(el);
   }
 }
 
 let listening = false;
 
 // Edge ornaments span the element's width, so repaint when it changes.
-const resized = new ResizeObserver((entries) => {
-  for (const { target } of entries) {
-    if (!rendered(target)) continue;
-    const scroller = target.querySelector(":scope > .sd-glints[data-sticky]");
-    if (scroller || target.matches(".sd-empty") || "sdEdges" in target.dataset || /(top|bottom|center)/.test(target.dataset.sdOrnaments || "")) paintOrnaments(target);
-  }
-});
+let resized;
+const resize = (el) =>
+  (resized ??= new ResizeObserver((entries) => {
+    for (const { target } of entries) {
+      if (!rendered(target)) continue;
+      const scroller = target.querySelector(":scope > .sd-glints[data-sticky]");
+      if (scroller || target.matches(".sd-empty") || "sdEdges" in target.dataset || /(top|bottom|center)/.test(target.dataset.sdOrnaments || "")) paintOrnaments(target);
+    }
+  })).observe(el);
 
 export function initOrnaments(root = document) {
   paintAll(root);
-  for (const el of root.querySelectorAll(SELECTOR)) resized.observe(el);
+  for (const el of root.querySelectorAll(SELECTOR)) resize(el);
   if (listening) return;
   listening = true;
   // Theme changes swap the variables; repaint once styles apply.

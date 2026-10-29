@@ -1,4 +1,5 @@
 import { $, ago, bytes, clock, day, on, percent, post, registerPage, request, share, size, whose } from './app.js';
+import { setExpanded } from './vendor/signal/js/index.js';
 
 const rows = new Map();
 const groups = new Map();
@@ -6,11 +7,7 @@ const busy = new Set();
 const expanded = new Set(JSON.parse(localStorage.getItem('expanded') ?? '[]'));
 let containers = [];
 let capacity = null;
-
-const icons = {
-    stop: '<rect x="6" y="6" width="12" height="12"/>',
-    start: '<path d="M7 4.5v15l12-7.5z"/>',
-};
+let panelSeq = 0;
 
 // ---------- Sorting ----------
 
@@ -67,7 +64,16 @@ function groupElement(name) {
     if (!groups.has(name)) {
         const element = $('group-template').content.firstElementChild.cloneNode(true);
         element.querySelector('.group-name').textContent = name;
-        element.querySelectorAll('.sort').forEach((button) => button.addEventListener('click', () => sortBy(button.dataset.sort)));
+        element.querySelector('[role="region"]').setAttribute('aria-label', `${name} containers`);
+        element.querySelectorAll('th[data-sort]').forEach((header) => {
+            header.addEventListener('click', () => sortBy(header.dataset.sort));
+            header.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    sortBy(header.dataset.sort);
+                }
+            });
+        });
         groups.set(name, element);
     }
 
@@ -116,11 +122,18 @@ function ceilingFor(peak) {
 function spark(chart, history, ceiling, scale) {
     const line = chart.querySelector('.line');
     const area = chart.querySelector('.area');
+    // Only the plot in the opened details has a scale and a span; the one in the row is the line alone.
+    const label = (selector, value) => {
+        const node = chart.querySelector(selector);
+        if (node) {
+            node.textContent = value;
+        }
+    };
     if (!history || history.length < 2) {
         line.setAttribute('points', '');
         area.setAttribute('points', '');
-        chart.querySelector('.scale').textContent = '';
-        chart.querySelector('.span').textContent = '';
+        label('.scale', '');
+        label('.span', '');
         return;
     }
     const slots = Math.max(history.length, 12);
@@ -133,18 +146,24 @@ function spark(chart, history, ceiling, scale) {
     const first = ((offset / (slots - 1)) * 100).toFixed(2);
     line.setAttribute('points', points.join(' '));
     area.setAttribute('points', `${first},100 ${points.join(' ')} 100,100`);
-    chart.querySelector('.scale').textContent = scale;
-    chart.querySelector('.span').textContent = duration(history.length);
+    label('.scale', scale);
+    label('.span', duration(history.length));
 }
 
 // ---------- Rows ----------
 
 function createRow(name) {
     const row = $('row-template').content.firstElementChild.cloneNode(true);
+    const panel = row.querySelector('.sd-expand');
+    const toggle = row.querySelector('.toggle');
+    panel.id = `detail-${++panelSeq}`;
+    toggle.dataset.sdToggle = panel.id;
+    toggle.setAttribute('aria-controls', panel.id);
     row.dataset.name = name;
-    row.querySelector('.head').addEventListener('click', (event) => {
+    // Signal opens a row from its button; a click anywhere else on the row's line does the same.
+    row.querySelector('.summary').addEventListener('click', (event) => {
         if (!event.target.closest('button')) {
-            toggleExpanded(name);
+            setExpanded(panel);
         }
     });
     row.querySelectorAll('[data-op]').forEach((button) =>
@@ -154,13 +173,18 @@ function createRow(name) {
     return row;
 }
 
-function toggleExpanded(name, force) {
-    const open = force ?? !expanded.has(name);
-    open ? expanded.add(name) : expanded.delete(name);
-    rows.get(name)?.classList.toggle('expanded', open);
+const panelOf = (row) => row.querySelector('.sd-expand');
+
+/** Signal owns whether a row is open (data-open, aria-expanded); this only reads it back to remember it. */
+function rememberExpanded() {
+    for (const [name, row] of rows) {
+        panelOf(row).hasAttribute('data-open') ? expanded.add(name) : expanded.delete(name);
+    }
     localStorage.setItem('expanded', JSON.stringify([...expanded]));
     updateExpandAll();
 }
+
+new MutationObserver(rememberExpanded).observe($('groups'), { subtree: true, attributes: true, attributeFilter: ['data-open'] });
 
 function updateExpandAll() {
     const allOpen = containers.length > 0 && containers.every((c) => expanded.has(c.name));
@@ -170,7 +194,7 @@ function updateExpandAll() {
 
 $('expand-all').addEventListener('click', () => {
     const open = !containers.every((c) => expanded.has(c.name));
-    containers.forEach((c) => toggleExpanded(c.name, open));
+    containers.forEach((c) => rows.has(c.name) && setExpanded(panelOf(rows.get(c.name)), open));
 });
 
 function text(row, selector, value) {
@@ -180,43 +204,64 @@ function text(row, selector, value) {
     }
 }
 
+function setBusy(row, on) {
+    row.classList.toggle('busy', on);
+    row.querySelector('.action-list').toggleAttribute('aria-busy', on);
+}
+
 function render(row, c) {
     const live = running(c);
     setTone(row, tone(c));
-    row.classList.toggle('expanded', expanded.has(c.name));
-    row.classList.toggle('busy', busy.has(c.name));
+    setBusy(row, busy.has(c.name));
 
     text(row, '.name', c.title);
     row.querySelector('.name').title = c.name;
+    row.querySelector('.toggle').setAttribute('aria-label', `Details of ${c.title}`);
+    const remove = row.querySelector('[data-op="remove"]');
+    remove.setAttribute('aria-label', `Remove ${c.title} and its data`);
+    remove.title = `Remove ${c.title} and its data`;
+    row.querySelector('.action-list').setAttribute('aria-label', `${c.title} actions`);
     text(row, '.branch', c.orphan ? 'folder deleted' : c.branch ?? c.image);
     text(row, '.port', c.port || '—');
+    text(row, '[data-f="port"]', c.port || '—');
     text(row, '.uptime', live ? c.uptime : '—');
+    text(row, '[data-f="uptime"]', live ? c.uptime : '—');
     text(row, '.badge', c.orphan ? 'folder deleted' : c.state);
     row.querySelector('.badge').dataset.tone = tone(c);
 
-    const cpu = row.querySelector('.metric.cpu');
-    const memory = row.querySelector('.metric.mem');
+    // Each metric has a cell in the row, with the value and a line, and a plot in the opened details.
+    const [cpuCell, cpuPlot] = row.querySelectorAll('.metric.cpu');
+    const [memoryCell, memoryPlot] = row.querySelectorAll('.metric.mem');
     if (live && c.cpu !== undefined) {
         const cpuShare = share(c.cpu, capacity.wsl.cpus);
         const cpuHistory = c.cpuHistory.map((cores) => share(cores, capacity.wsl.cpus));
-        text(cpu, '.value', percent(cpuShare));
-        setTone(cpu, cpuTone(cpuShare));
         const cpuCeiling = ceilingFor(Math.max(...cpuHistory));
-        spark(cpu.querySelector('.chart'), cpuHistory, cpuCeiling, `${cpuCeiling}%`);
-        text(memory, '.v', bytes(c.memoryBytes));
         const limit = c.memoryLimitBytes ? bytes(c.memoryLimitBytes).replace('.0 ', ' ') : '';
-        text(memory, '.limit', limit ? `of ${limit}` : '');
-        setTone(memory, memoryTone(c.memoryPercent));
-        spark(memory.querySelector('.chart'), c.memoryHistory, 100, limit);
+        text(cpuCell, '.value', percent(cpuShare));
+        text(memoryCell, '.value', bytes(c.memoryBytes));
+        text(memoryPlot, '.limit', limit ? `of ${limit}` : '');
+        for (const cell of [cpuCell, cpuPlot]) {
+            setTone(cell, cpuTone(cpuShare));
+            spark(cell.querySelector('.chart'), cpuHistory, cpuCeiling, `${cpuCeiling}%`);
+        }
+        for (const cell of [memoryCell, memoryPlot]) {
+            setTone(cell, memoryTone(c.memoryPercent));
+            spark(cell.querySelector('.chart'), c.memoryHistory, 100, limit);
+        }
     } else {
-        text(cpu, '.value', '—');
-        text(memory, '.v', '—');
-        text(memory, '.limit', '');
-        setTone(cpu, null);
-        setTone(memory, null);
-        spark(cpu.querySelector('.chart'), null);
-        spark(memory.querySelector('.chart'), null);
+        text(cpuCell, '.value', '—');
+        text(memoryCell, '.value', '—');
+        text(memoryPlot, '.limit', '');
+        for (const cell of [cpuCell, cpuPlot, memoryCell, memoryPlot]) {
+            setTone(cell, null);
+            spark(cell.querySelector('.chart'), null);
+        }
     }
+
+    // A phone has no room for these columns, so the opened details repeat them.
+    text(row, '[data-f="state"]', c.orphan ? 'folder deleted' : c.state);
+    text(row, '[data-f="cpu"]', cpuCell.querySelector('.value').textContent);
+    text(row, '[data-f="memory"]', memoryCell.querySelector('.value').textContent);
 
     const facts = (field, value) => {
         const element = row.querySelector(`[data-f="${field}"]`);
@@ -232,14 +277,9 @@ function render(row, c) {
     text(row, '[data-f="image"]', c.image);
     text(row, '[data-f="path"]', c.path ?? '—');
     row.querySelector('[data-f="path"]').title = c.path ?? '';
+    row.querySelector('.orphan-key').hidden = row.querySelector('.orphan-note').hidden = !c.orphan;
 
-    const toggle = row.querySelector('[data-op="toggle"]');
-    const verb = live ? 'stop' : 'start';
-    if (toggle.dataset.verb !== verb) {
-        toggle.dataset.verb = verb;
-        toggle.querySelector('svg').innerHTML = icons[verb];
-        toggle.querySelector('span').textContent = live ? 'Stop' : 'Start';
-    }
+    text(row, '[data-op="toggle"]', live ? 'Stop' : 'Start');
     row.querySelector('[data-op="restart"]').disabled = !live;
     row.querySelector('[data-op="logs"]').disabled = false;
     row.querySelector('[data-op="folder"]').disabled = !c.hasPath || c.orphan;
@@ -253,12 +293,19 @@ function sync(holder, items) {
         return row;
     });
     wanted.forEach((row, index) => {
-        if (holder.children[index] !== row) {
-            holder.insertBefore(row, holder.children[index] ?? null);
+        if (holder.tBodies[index] !== row) {
+            holder.insertBefore(row, holder.tBodies[index] ?? null);
+        }
+        // A saved row opens once it is in the page, because Signal updates the toggles it finds there.
+        if (!row.dataset.restored) {
+            row.dataset.restored = 'true';
+            if (expanded.has(row.dataset.name)) {
+                setExpanded(panelOf(row), true);
+            }
         }
     });
-    while (holder.children.length > wanted.length) {
-        holder.lastElementChild.remove();
+    while (holder.tBodies.length > wanted.length) {
+        holder.tBodies[holder.tBodies.length - 1].remove();
     }
 }
 
@@ -278,7 +325,7 @@ function layout() {
         }
         element.querySelector('.section-head').hidden = names.length === 1;
         element.querySelector('.count').textContent = sections.get(name).length;
-        sync(element.querySelector('.rows'), sections.get(name));
+        sync(element.querySelector('table'), sections.get(name));
     });
     for (const [name, element] of groups) {
         if (!sections.has(name)) {
@@ -286,9 +333,12 @@ function layout() {
             groups.delete(name);
         }
     }
-    holder.querySelectorAll('.sort').forEach((button) => {
-        button.classList.toggle('current', button.dataset.sort === sort.key);
-        button.classList.toggle('asc', button.dataset.sort === sort.key && sort.dir > 0);
+    holder.querySelectorAll('th[data-sort]').forEach((header) => {
+        if (header.dataset.sort === sort.key) {
+            header.setAttribute('aria-sort', sort.dir > 0 ? 'ascending' : 'descending');
+        } else {
+            header.removeAttribute('aria-sort');
+        }
     });
     $('containers-empty').hidden = containers.length > 0;
 }
@@ -318,7 +368,7 @@ function snapshot(message) {
     $('total').textContent = `/ ${containers.length}`;
     renderTotals(live.reduce((sum, c) => sum + (c.cpu ?? 0), 0), live.reduce((sum, c) => sum + (c.memoryBytes ?? 0), 0));
     $('orphans').textContent = orphans.length;
-    setTone($('orphan-tile'), orphans.length ? 'pending' : 'neutral');
+    setTone($('orphan-tile'), orphans.length ? 'pending' : null);
     $('reap').disabled = orphans.length === 0;
 
     $('live').dataset.tone = 'success';
@@ -457,7 +507,7 @@ function renderRemoved() {
     $('removed-count').textContent = removedTotal;
     $('removed-body').hidden = !removedOpen;
     $('removed-rows').replaceChildren(...items.map(removedRow));
-    $('removed-columns').hidden = items.length === 0;
+    $('removed-table').hidden = items.length === 0;
     $('removed-empty').hidden = !loaded || removedTotal > 0;
     $('removed-pager').hidden = !loaded || removedTotal <= removedPageSize;
     $('removed-range').textContent = `${removedOffset + 1}–${removedOffset + items.length} of ${removedTotal}`;
@@ -567,7 +617,10 @@ on('snapshot', snapshot);
 on('event', ({ event }) => changesRemoved(event) && loadRemoved());
 on('busy', (data) => {
     data.busy ? busy.add(data.name) : busy.delete(data.name);
-    rows.get(data.name)?.classList.toggle('busy', data.busy);
+    const row = rows.get(data.name);
+    if (row) {
+        setBusy(row, data.busy);
+    }
 });
 on('error', (data) => confirm({ title: data.title, message: 'wslc reported an error.', detail: data.message }));
 on('missing', () => {

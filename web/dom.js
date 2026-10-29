@@ -1,6 +1,6 @@
 // DOM helpers and dialogs shared by the Manage, Logs and Resources pages.
 
-import { $ } from './app.js';
+import { $, svg } from './app.js';
 
 // Runtime data only ever reaches the page as text nodes or properties; markup strings below are fixed literals.
 
@@ -46,23 +46,8 @@ export function append(node, children) {
     return node;
 }
 
-/** A fixed, data-free icon. */
-export function icon(markup) {
-    const holder = document.createElement('span');
-    holder.innerHTML = `<svg viewBox="0 0 24 24" class="icon" aria-hidden="true">${markup}</svg>`;
-
-    return holder.firstElementChild;
-}
-
-export const icons = {
-    manage: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
-    logs: '<path d="m4 17 6-6-6-6"/><path d="M12 19h8"/>',
-    close: '<path d="M18 6 6 18M6 6l12 12"/>',
-    up: '<path d="m18 15-6-6-6 6"/>',
-    folder: '<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
-    file: '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><path d="M14 2v6h6"/>',
-    link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
-};
+/** One icon from Signal's set. */
+export const icon = (name) => svg(name);
 
 export const text = (value) => (value == null || value === '' ? '—' : String(value));
 export const plural = (count, one, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
@@ -204,7 +189,7 @@ export function openDialog({ title, tone = 'cyan', wide = false, body = [], onCl
     const content = el('div', { class: 'mg-dialog-body' });
     const foot = el('div', { class: 'mg-dialog-actions' });
     const heading = el('h3', { id: titleId }, el('span', {}, title));
-    const close = el('button', { type: 'button', class: 'sd-btn sd-btn-ghost sd-btn-sm sd-btn-icon', title: 'Close', 'aria-label': 'Close dialog' }, icon(icons.close));
+    const close = el('button', { type: 'button', class: 'sd-btn sd-btn-ghost sd-btn-sm sd-btn-icon', title: 'Close', 'aria-label': 'Close dialog' }, icon('close'));
     const box = el('div', {
         class: `mg-dialog${wide ? ' wide' : ''}`, role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId, tabIndex: -1,
         dataset: { tone: toneOf(tone) },

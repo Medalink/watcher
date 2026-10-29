@@ -3,7 +3,7 @@
 
 import { $, ago, bytes, clock, day, on, registerPage, request } from './app.js';
 import {
-    confirmAction, openDialog, targetList, el, append, icon, icons, text, plural, isObject, errorText, toneOf, status, statusLine, busyWhile, field, button, badge, facts, jsonBlock, table, shape,
+    confirmAction, openDialog, targetList, el, append, icon, text, plural, isObject, errorText, toneOf, status, statusLine, busyWhile, field, button, badge, facts, jsonBlock, table, shape,
 } from './dom.js';
 
 // ---------- Host bridge ----------
@@ -80,16 +80,16 @@ function outcomeTable(results) {
 
 // ---------- Pages ----------
 
-function railItem(page, label, title, markup) {
-    const link = el('a', { class: 'sd-rail-item', href: `#${page}`, dataset: { page }, title }, icon(markup), el('span', {}, label));
+function railItem(page, label, title, glyph) {
+    const link = el('a', { class: 'sd-rail-item', href: `#${page}`, dataset: { page }, title }, icon(glyph), el('span', {}, label));
 
     return link;
 }
 
 const rail = document.querySelector('.sd-rail-list');
 rail?.append(
-    railItem('manage', 'Manage', 'Inspect and control existing workloads, images, volumes and networks', icons.manage),
-    railItem('logs', 'Logs', 'Combined, searchable container logs', icons.logs));
+    railItem('manage', 'Manage', 'Inspect and control existing workloads, images, volumes and networks', 'settings'),
+    railItem('logs', 'Logs', 'Combined, searchable container logs', 'logs'));
 
 function page(name, heading, intro, side = null) {
     const section = el('section', { class: 'page mg-page', dataset: { page: name }, hidden: true },
@@ -720,7 +720,7 @@ function openFiles(name, start = '/') {
                 event.preventDefault();
                 browse(pathInput.value.trim() || '/');
             } },
-            el('button', { type: 'button', class: 'sd-btn sd-btn-icon sd-btn-sm', title: 'Parent folder', 'aria-label': 'Parent folder', onclick: () => browse(parentPath(path)) }, icon(icons.up)),
+            el('button', { type: 'button', class: 'sd-btn sd-btn-icon sd-btn-sm', title: 'Parent folder', 'aria-label': 'Parent folder', onclick: () => browse(parentPath(path)) }, icon('chevron-up')),
             pathInput,
             el('button', { type: 'submit', class: 'sd-btn sd-btn-sm' }, 'Go')),
             list,
@@ -753,7 +753,7 @@ function openFiles(name, start = '/') {
             const node = el('div', {
                 class: 'mg-file sd-item', role: 'option', tabIndex: 0, 'aria-selected': 'false', dataset: { name: entry.name },
                 title: isDirectory(entry) ? 'Double-click or press Enter to open' : 'Select to copy out',
-            }, icon(isDirectory(entry) ? icons.folder : isLink(entry) ? icons.link : icons.file),
+            }, icon(isDirectory(entry) ? 'chevron-right' : isLink(entry) ? 'link' : 'logs'),
                 el('span', { class: 'sd-item-body' }, el('span', { class: 'sd-item-title' }, entry.name)),
                 el('span', { class: 'sd-item-end' }, entry.type ?? ''));
             node.addEventListener('click', () => choose(entry));
@@ -2112,7 +2112,6 @@ function renderPicker() {
         const item = pickerItems.get(name);
         const c = containerByName(name);
         item.querySelector('input').checked = picked.has(name);
-        item.setAttribute('aria-pressed', String(picked.has(name)));
         if (c && running(c)) {
             item.dataset.tone = 'success';
         } else {
