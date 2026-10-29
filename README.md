@@ -170,7 +170,7 @@ pwsh -NoProfile -File tools/verify-management.ps1
 
 The native verification requires an already-cached `alpine:3.20` image. It creates a uniquely labeled disposable container and volume, launches Watcher with temporary data on a separate Windows desktop, drives its real WebView bridge and captures the pages. It never changes the input desktop. Cleanup checks the fixture's identity and label before removing it. Artifact paths are printed by the script. It does not exercise user resources or pull an image.
 
-The proof covers page routes and Manage tabs, rendered logs, inspection, file browsing, copy in/out, stopped-volume backup integrity, bulk start/stop/restart, finite runtime events and HTTP readiness. Interactive Terminal, the Explorer tray, sign-in registration, and terminating a user's active session require manual checks; the script does not invoke them.
+The proof covers page routes and Manage tabs, the Stats plot read by keyboard, rendered logs, inspection, file browsing, copy in/out, stopped-volume backup integrity, bulk start/stop/restart, finite runtime events and HTTP readiness. Interactive Terminal, the Explorer tray, sign-in registration, and terminating a user's active session require manual checks; the script does not invoke them.
 
 ## Credits
 
