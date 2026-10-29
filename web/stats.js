@@ -122,7 +122,8 @@ function element(name, attributes, parent) {
     return node;
 }
 
-function ticks(from, to) {
+/** Time ticks on a round step; a narrow plot drops every few so their labels do not touch. */
+function ticks(from, to, room) {
     const span = to - from;
     const hour = 3_600_000;
     const step = span <= hour ? 10 * 60_000 : span <= 24 * hour ? 4 * hour : span <= 7 * 24 * hour ? 24 * hour : 5 * 24 * hour;
@@ -131,8 +132,9 @@ function ticks(from, to) {
     for (let at = Math.ceil((from + offset) / step) * step - offset; at <= to; at += step) {
         result.push(at);
     }
+    const every = Math.ceil(result.length / Math.max(1, Math.floor(room / 64)));
 
-    return result;
+    return result.filter((_, index) => index % every === 0);
 }
 
 function tickLabel(at, span) {
@@ -190,7 +192,7 @@ function chart(holder, read, axis, format, label = format, unit = '') {
         element('line', { class: value === 0 ? 'base' : 'grid', x1: pad.left, x2: width - pad.right, y1: y(value), y2: y(value) }, svg);
         element('text', { x: pad.left - 10, y: y(value) + 3.5, 'text-anchor': 'end' }, svg).textContent = label(value);
     }
-    for (const at of ticks(from, to)) {
+    for (const at of ticks(from, to, plotWidth)) {
         element('text', { x: x(at), y: height - 6, 'text-anchor': 'middle' }, svg).textContent = tickLabel(at, to - from);
     }
     if (unit) {
