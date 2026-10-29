@@ -1,4 +1,5 @@
 import { $, clock, day, on, registerPage, request } from './app.js';
+import { icon } from './vendor/signal/js/icons.js';
 
 const groups = {
     lifecycle: ['appeared', 'disappeared', 'state', 'orphaned', 'port'],
@@ -8,7 +9,7 @@ const groups = {
     runtime: ['runtime', 'runtime-gap'],
 };
 const pageSize = 200;
-const chevron = '<svg viewBox="0 0 24 24" class="icon"><path d="m9 18 6-6-6-6"/></svg>';
+const chevron = icon('chevron-right');
 
 const active = new Set(JSON.parse(localStorage.getItem('activity-groups') ?? 'null') ?? Object.keys(groups));
 const expanded = new Set();

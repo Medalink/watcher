@@ -51,7 +51,7 @@ on('snapshot', (message) => {
 // ---------- Page ----------
 
 const link = el('a', { class: 'sd-rail-item', href: '#resources', dataset: { page: 'resources' }, title: 'Memory, CPU and age limits Watcher enforces' },
-    icon('<path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/><circle cx="12" cy="12" r="4"/>'),
+    icon('sliders'),
     el('span', {}, 'Resources'));
 const activityLink = document.querySelector('.sd-rail-item[data-page="activity"]');
 activityLink ? activityLink.after(link) : document.querySelector('.sd-rail-list')?.append(link);

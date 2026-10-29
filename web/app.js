@@ -5,8 +5,26 @@
 // ornaments, themes and the fps counter all mount from the declarative attributes
 // in index.html. The sd:window event is bridged to the host like any other action.
 import { init } from './vendor/signal/js/index.js';
+import { icon } from './vendor/signal/js/icons.js';
 init();
 document.addEventListener('sd:window', ({ detail }) => post({ type: detail.action }));
+
+/** One icon from Signal's set as an element. */
+export function svg(name, label) {
+    const holder = document.createElement('template');
+    holder.innerHTML = icon(name, label);
+
+    return holder.content.firstElementChild;
+}
+
+/** Swaps each <i data-ic="name"> under root for Signal's icon of that name. */
+export function hydrateIcons(root) {
+    root.querySelectorAll('i[data-ic]').forEach((mark) => mark.replaceWith(svg(mark.dataset.ic)));
+}
+
+hydrateIcons(document);
+// <template> content is a separate fragment, so the markup cloned from it needs its own pass.
+document.querySelectorAll('template').forEach((template) => hydrateIcons(template.content));
 
 const host = window.chrome.webview;
 export const post = (message) => host.postMessage(message);
@@ -40,7 +58,8 @@ host.addEventListener('message', ({ data }) => {
     }
     if (data.type === 'window') {
         document.body.classList.toggle('maximized', data.maximized);
-        $('maximize').title = data.maximized ? 'Restore' : 'Maximize';
+        document.querySelector('.sd-titlebar').toggleAttribute('data-maximized', data.maximized);
+        $('maximize').title = $('maximize').ariaLabel = data.maximized ? 'Restore' : 'Maximize';
         return;
     }
     handlers.get(data.type)?.forEach((handler) => handler(data));

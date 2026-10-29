@@ -1,6 +1,6 @@
 /*
  * Management layouts use the shared controls and sd- components from
- * vendor/signal/signal.css; this file is layout and state only.
+ * vendor/signal/signal-core.css; this file is layout and state only.
  */
 
 .mg-page .heading { gap: 24px; }
