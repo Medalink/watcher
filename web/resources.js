@@ -111,7 +111,7 @@ function limitEditor(limits, label, onChange) {
                 action),
         };
     });
-    const samples = el('input', { type: 'number', class: 'mg-narrow', min: 1, max: 600, step: 1, value: String(limits?.samples ?? defaultSamples) });
+    const samples = el('input', { type: 'number', class: 'mg-narrow', min: 1, max: 600, step: 1, 'aria-label': 'Samples in a row', value: String(limits?.samples ?? defaultSamples) });
     const duration = el('span', { class: 'hint' });
     const problem = el('p', { class: 'mg-status sd-meta', dataset: { tone: 'danger' }, role: 'alert', hidden: true });
     const showDuration = () => (duration.textContent = `samples in a row, ${seconds(Number(samples.value) || 0)} at the current refresh rate`);

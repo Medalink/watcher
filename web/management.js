@@ -2112,7 +2112,6 @@ function renderPicker() {
         const item = pickerItems.get(name);
         const c = containerByName(name);
         item.querySelector('input').checked = picked.has(name);
-        item.setAttribute('aria-pressed', String(picked.has(name)));
         if (c && running(c)) {
             item.dataset.tone = 'success';
         } else {
